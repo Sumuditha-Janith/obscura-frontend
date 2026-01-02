@@ -1,44 +1,98 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { register } from "../services/auth.service";
+import { register, validateEmail, validatePassword, validateName } from "../services/auth.service";
 import { useNavigate, Link } from "react-router-dom";
 
 export default function Register() {
   const navigate = useNavigate();
-  const [firstname, setFirstname] = useState("");
-  const [lastname, setLastname] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [formData, setFormData] = useState({
+    firstname: "",
+    lastname: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
   const [role, setRole] = useState("USER");
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    // Validate first name
+    if (!formData.firstname.trim()) {
+      newErrors.firstname = "First name is required";
+    } else if (!validateName(formData.firstname)) {
+      newErrors.firstname = "First name must be at least 2 letters";
+    }
+
+    // Validate last name
+    if (!formData.lastname.trim()) {
+      newErrors.lastname = "Last name is required";
+    } else if (!validateName(formData.lastname)) {
+      newErrors.lastname = "Last name must be at least 2 letters";
+    }
+
+    // Validate email
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!validateEmail(formData.email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+
+    // Validate password
+    if (!formData.password) {
+      newErrors.password = "Password is required";
+    } else {
+      const passwordValidation = validatePassword(formData.password);
+      if (!passwordValidation.valid) {
+        newErrors.password = passwordValidation.message;
+      }
+    }
+
+    // Validate confirm password
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = "Please confirm your password";
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleRegister = async (e: FormEvent) => {
     e.preventDefault();
     setMessage("");
 
-    if (!firstname || !lastname || !email || !password || !confirmPassword) {
-      setMessage("All fields are required.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setMessage("Passwords do not match.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setMessage("Password must be at least 6 characters.");
+    if (!validateForm()) {
       return;
     }
 
     setLoading(true);
     try {
-      const res = await register({ firstname, lastname, email, password, role });
+      const res = await register({ 
+        firstname: formData.firstname, 
+        lastname: formData.lastname, 
+        email: formData.email, 
+        password: formData.password, 
+        role 
+      });
+      
       setMessage(res.message);
       setTimeout(() => {
-        navigate("/verify-otp", { state: { email } });
+        navigate("/verify-otp", { state: { email: formData.email } });
       }, 2000);
     } catch (err: any) {
       setMessage(err.response?.data?.message || "Registration failed");
@@ -70,62 +124,100 @@ export default function Register() {
 
         {/* Registration Form */}
         <form onSubmit={handleRegister} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1 text-slate-300">First Name</label>
-              <input
-                type="text"
-                value={firstname}
-                onChange={(e) => setFirstname(e.target.value)}
-                className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-slate-50"
-                placeholder="John"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1 text-slate-300">Last Name</label>
-              <input
-                type="text"
-                value={lastname}
-                onChange={(e) => setLastname(e.target.value)}
-                className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-slate-50"
-                placeholder="Doe"
-              />
-            </div>
+          {/* First Name */}
+          <div>
+            <label className="block text-sm font-medium mb-1 text-slate-300">First Name</label>
+            <input
+              type="text"
+              name="firstname"
+              value={formData.firstname}
+              onChange={handleChange}
+              className={`w-full p-3 bg-slate-700 border rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-slate-50 ${
+                errors.firstname ? "border-rose-500" : "border-slate-600"
+              }`}
+              placeholder="John"
+            />
+            {errors.firstname && (
+              <p className="mt-1 text-sm text-rose-400">{errors.firstname}</p>
+            )}
           </div>
 
+          {/* Last Name */}
+          <div>
+            <label className="block text-sm font-medium mb-1 text-slate-300">Last Name</label>
+            <input
+              type="text"
+              name="lastname"
+              value={formData.lastname}
+              onChange={handleChange}
+              className={`w-full p-3 bg-slate-700 border rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-slate-50 ${
+                errors.lastname ? "border-rose-500" : "border-slate-600"
+              }`}
+              placeholder="Doe"
+            />
+            {errors.lastname && (
+              <p className="mt-1 text-sm text-rose-400">{errors.lastname}</p>
+            )}
+          </div>
+
+          {/* Email */}
           <div>
             <label className="block text-sm font-medium mb-1 text-slate-300">Email</label>
             <input
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-slate-50"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              className={`w-full p-3 bg-slate-700 border rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-slate-50 ${
+                errors.email ? "border-rose-500" : "border-slate-600"
+              }`}
               placeholder="john@example.com"
             />
+            {errors.email && (
+              <p className="mt-1 text-sm text-rose-400">{errors.email}</p>
+            )}
           </div>
 
+          {/* Password */}
           <div>
             <label className="block text-sm font-medium mb-1 text-slate-300">Password</label>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-slate-50"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              className={`w-full p-3 bg-slate-700 border rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-slate-50 ${
+                errors.password ? "border-rose-500" : "border-slate-600"
+              }`}
               placeholder="••••••••"
             />
+            {errors.password && (
+              <p className="mt-1 text-sm text-rose-400">{errors.password}</p>
+            )}
+            <p className="mt-1 text-xs text-slate-500">
+              Must be at least 6 characters with one uppercase letter and one number
+            </p>
           </div>
 
+          {/* Confirm Password */}
           <div>
             <label className="block text-sm font-medium mb-1 text-slate-300">Confirm Password</label>
             <input
               type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-slate-50"
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              className={`w-full p-3 bg-slate-700 border rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-slate-50 ${
+                errors.confirmPassword ? "border-rose-500" : "border-slate-600"
+              }`}
               placeholder="••••••••"
             />
+            {errors.confirmPassword && (
+              <p className="mt-1 text-sm text-rose-400">{errors.confirmPassword}</p>
+            )}
           </div>
 
+          {/* Account Type */}
           <div>
             <label className="block text-sm font-medium mb-1 text-slate-300">Account Type</label>
             <select
@@ -136,29 +228,40 @@ export default function Register() {
               <option value="USER" className="bg-slate-800">🎬 Movie Enthusiast</option>
               <option value="AUTHOR" className="bg-slate-800">✍️ Content Author</option>
             </select>
+            <p className="mt-1 text-xs text-slate-500">
+              {role === "AUTHOR" 
+                ? "Authors can create content and need admin approval" 
+                : "Users can track movies and manage watchlists"}
+            </p>
           </div>
 
+          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-rose-600 hover:bg-rose-700 text-slate-50 font-bold py-3 px-4 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-rose-600 hover:bg-rose-700 text-slate-50 font-bold py-3 px-4 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed mt-6"
           >
             {loading ? (
               <span className="flex items-center justify-center">
                 <div className="w-5 h-5 border-2 border-slate-50 border-t-transparent rounded-full animate-spin mr-2"></div>
                 Creating Account...
               </span>
-            ) : "Register"}
+            ) : "Create Account"}
           </button>
         </form>
 
-        {/* Login Link */}
-        <p className="text-center mt-6 text-slate-400">
-          Already have an account?{" "}
-          <Link to="/login" className="text-rose-400 hover:text-rose-300 hover:underline">
-            Login here
-          </Link>
-        </p>
+        {/* Terms & Login Link */}
+        <div className="mt-6 space-y-4">
+          <p className="text-xs text-center text-slate-500">
+            By creating an account, you agree to our Terms of Service and Privacy Policy
+          </p>
+          <p className="text-center text-slate-400">
+            Already have an account?{" "}
+            <Link to="/login" className="text-rose-400 hover:text-rose-300 hover:underline">
+              Login here
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

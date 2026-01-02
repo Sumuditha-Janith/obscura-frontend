@@ -1,11 +1,25 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { getMyDetails } from "../services/auth.service";
 
-const AuthContext = createContext<any>(null);
+interface AuthContextType {
+  user: any;
+  setUser: (user: any) => void;
+  loading: boolean;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: any) => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  const logout = () => {
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    setUser(null);
+    window.location.href = "/login";
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
@@ -15,7 +29,7 @@ export const AuthProvider = ({ children }: any) => {
           setUser(res.data);
         })
         .catch(() => {
-          setUser(null);
+          logout();
         })
         .finally(() => {
           setLoading(false);
@@ -27,7 +41,7 @@ export const AuthProvider = ({ children }: any) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading }}>
+    <AuthContext.Provider value={{ user, setUser, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );
