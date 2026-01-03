@@ -230,33 +230,6 @@ export default function Movies() {
             </>
           )}
         </div>
-
-        {/* Stats Section */}
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-            <div className="text-3xl mb-3">📈</div>
-            <h3 className="text-xl font-bold mb-2">Real-time Data</h3>
-            <p className="text-slate-400">
-              Powered by TMDB with live updates and accurate metadata
-            </p>
-          </div>
-          
-          <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-            <div className="text-3xl mb-3">🎯</div>
-            <h3 className="text-xl font-bold mb-2">Personal Watchlist</h3>
-            <p className="text-slate-400">
-              Track movies and TV shows you want to watch
-            </p>
-          </div>
-          
-          <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-            <div className="text-3xl mb-3">⏱️</div>
-            <h3 className="text-xl font-bold mb-2">Watch Time Tracking</h3>
-            <p className="text-slate-400">
-              Automatically calculates total watch time
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );
