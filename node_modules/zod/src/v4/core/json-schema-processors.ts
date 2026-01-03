@@ -35,6 +35,12 @@ export const stringProcessor: Processor<schemas.$ZodString> = (schema, ctx, _jso
   if (format) {
     json.format = formatMap[format as checks.$ZodStringFormats] ?? format;
     if (json.format === "") delete json.format; // empty format is not valid
+
+    // JSON Schema format: "time" requires a full time with offset or Z
+    // z.iso.time() does not include timezone information, so format: "time" should never be used
+    if (format === "time") {
+      delete json.format;
+    }
   }
   if (contentEncoding) json.contentEncoding = contentEncoding;
   if (patterns && patterns.size > 0) {
@@ -228,10 +234,8 @@ export const fileProcessor: Processor<schemas.$ZodFile> = (schema, _ctx, json, _
       file.contentMediaType = mime[0]!;
       Object.assign(_json, file);
     } else {
-      _json.anyOf = mime.map((m) => {
-        const mFile: JSONSchema.StringSchema = { ...file, contentMediaType: m };
-        return mFile;
-      });
+      Object.assign(_json, file); // shared props at root
+      _json.anyOf = mime.map((m) => ({ contentMediaType: m })); // only contentMediaType differs
     }
   } else {
     Object.assign(_json, file);
@@ -427,16 +431,49 @@ export const recordProcessor: Processor<schemas.$ZodRecord> = (schema, ctx, _jso
   const json = _json as JSONSchema.ObjectSchema;
   const def = schema._zod.def as schemas.$ZodRecordDef;
   json.type = "object";
-  if (ctx.target === "draft-07" || ctx.target === "draft-2020-12") {
-    json.propertyNames = process(def.keyType, ctx as any, {
+
+  // For looseRecord with regex patterns, use patternProperties
+  // This correctly represents "only validate keys matching the pattern" semantics
+  // and composes well with allOf (intersections)
+  const keyType = def.keyType as schemas.$ZodTypes;
+  const keyBag = keyType._zod.bag as schemas.$ZodStringInternals<unknown>["bag"] | undefined;
+  const patterns = keyBag?.patterns;
+
+  if (def.mode === "loose" && patterns && patterns.size > 0) {
+    // Use patternProperties for looseRecord with regex patterns
+    const valueSchema = process(def.valueType, ctx as any, {
       ...params,
-      path: [...params.path, "propertyNames"],
+      path: [...params.path, "patternProperties", "*"],
+    });
+    json.patternProperties = {};
+    for (const pattern of patterns) {
+      json.patternProperties[pattern.source] = valueSchema;
+    }
+  } else {
+    // Default behavior: use propertyNames + additionalProperties
+    if (ctx.target === "draft-07" || ctx.target === "draft-2020-12") {
+      json.propertyNames = process(def.keyType, ctx as any, {
+        ...params,
+        path: [...params.path, "propertyNames"],
+      });
+    }
+    json.additionalProperties = process(def.valueType, ctx as any, {
+      ...params,
+      path: [...params.path, "additionalProperties"],
     });
   }
-  json.additionalProperties = process(def.valueType, ctx as any, {
-    ...params,
-    path: [...params.path, "additionalProperties"],
-  });
+
+  // Add required for keys with discrete values (enum, literal, etc.)
+  const keyValues = keyType._zod.values;
+  if (keyValues) {
+    const validKeyValues = [...keyValues].filter(
+      (v): v is string | number => typeof v === "string" || typeof v === "number"
+    );
+
+    if (validKeyValues.length > 0) {
+      json.required = validKeyValues as string[];
+    }
+  }
 };
 
 export const nullableProcessor: Processor<schemas.$ZodNullable> = (schema, ctx, json, params) => {

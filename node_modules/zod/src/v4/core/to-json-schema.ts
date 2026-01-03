@@ -75,7 +75,8 @@ export interface Seen {
   /** Cycle path */
   cycle?: (string | number)[] | undefined;
   isParent?: boolean | undefined;
-  ref?: schemas.$ZodType | undefined | null;
+  /** Schema to inherit JSON Schema properties from (set by processor for wrappers) */
+  ref?: schemas.$ZodType | null;
   /** JSON Schema property path for this schema */
   path?: (string | number)[] | undefined;
 }
@@ -172,14 +173,7 @@ export function process<T extends schemas.$ZodType>(
       path: _params.path,
     };
 
-    const parent = schema._zod.parent as T;
-
-    if (parent) {
-      // schema was cloned from another schema
-      result.ref = parent;
-      process(parent, ctx, params);
-      ctx.seen.get(parent)!.isParent = true;
-    } else if (schema._zod.processJSONSchema) {
+    if (schema._zod.processJSONSchema) {
       schema._zod.processJSONSchema(ctx, result.schema, params);
     } else {
       const _json = result.schema;
@@ -188,6 +182,15 @@ export function process<T extends schemas.$ZodType>(
         throw new Error(`[toJSONSchema]: Non-representable type encountered: ${def.type}`);
       }
       processor(schema, ctx, _json, params);
+    }
+
+    const parent = schema._zod.parent as T;
+
+    if (parent) {
+      // Also set ref if processor didn't (for inheritance)
+      if (!result.ref) result.ref = parent;
+      process(parent, ctx, params);
+      ctx.seen.get(parent)!.isParent = true;
     }
   }
 
@@ -220,6 +223,21 @@ export function extractDefs<T extends schemas.$ZodType>(
   const root = ctx.seen.get(schema);
 
   if (!root) throw new Error("Unprocessed schema. This is a bug in Zod.");
+
+  // Track ids to detect duplicates across different schemas
+  const idToSchema = new Map<string, schemas.$ZodType>();
+  for (const entry of ctx.seen.entries()) {
+    const id = ctx.metadataRegistry.get(entry[0])?.id;
+    if (id) {
+      const existing = idToSchema.get(id);
+      if (existing && existing !== entry[0]) {
+        throw new Error(
+          `Duplicate schema id "${id}" detected during JSON Schema conversion. Two different schemas cannot share the same id when converted together.`
+        );
+      }
+      idToSchema.set(id, entry[0]);
+    }
+  }
 
   // returns a ref to the schema
   // defId will be empty if the ref points to an external schema (or #)
@@ -342,49 +360,90 @@ export function finalize<T extends schemas.$ZodType>(
   ctx: ToJSONSchemaContext,
   schema: T
 ): ZodStandardJSONSchemaPayload<T> {
-  //
-
-  // iterate over seen map;
   const root = ctx.seen.get(schema);
-
   if (!root) throw new Error("Unprocessed schema. This is a bug in Zod.");
 
-  // flatten _refs
+  // flatten refs - inherit properties from parent schemas
   const flattenRef = (zodSchema: schemas.$ZodType) => {
     const seen = ctx.seen.get(zodSchema)!;
-    const schema = seen.def ?? seen.schema;
 
+    // already processed
+    if (seen.ref === null) return;
+
+    const schema = seen.def ?? seen.schema;
     const _cached = { ...schema };
 
-    // already seen
-    if (seen.ref === null) {
-      return;
-    }
-
-    // flatten ref if defined
     const ref = seen.ref;
-    seen.ref = null; // prevent recursion
+    seen.ref = null; // prevent infinite recursion
+
     if (ref) {
       flattenRef(ref);
 
+      const refSeen = ctx.seen.get(ref)!;
+      const refSchema = refSeen.schema;
+
       // merge referenced schema into current
-      const refSchema = ctx.seen.get(ref)!.schema;
       if (refSchema.$ref && (ctx.target === "draft-07" || ctx.target === "draft-04" || ctx.target === "openapi-3.0")) {
+        // older drafts can't combine $ref with other properties
         schema.allOf = schema.allOf ?? [];
         schema.allOf.push(refSchema);
       } else {
         Object.assign(schema, refSchema);
-        Object.assign(schema, _cached); // prevent overwriting any fields in the original schema
+      }
+      // restore child's own properties (child wins)
+      Object.assign(schema, _cached);
+
+      const isParentRef = zodSchema._zod.parent === ref;
+
+      // For parent chain, child is a refinement - remove parent-only properties
+      if (isParentRef) {
+        for (const key in schema) {
+          if (key === "$ref" || key === "allOf") continue;
+          if (!(key in _cached)) {
+            delete schema[key];
+          }
+        }
+      }
+
+      // When ref was extracted to $defs, remove properties that match the definition
+      if (refSchema.$ref) {
+        for (const key in schema) {
+          if (key === "$ref" || key === "allOf") continue;
+          if (key in refSeen.def! && JSON.stringify(schema[key]) === JSON.stringify(refSeen.def![key])) {
+            delete schema[key];
+          }
+        }
+      }
+    }
+
+    // If parent was extracted (has $ref), propagate $ref to this schema
+    // This handles cases like: readonly().meta({id}).describe()
+    // where processor sets ref to innerType but parent should be referenced
+    const parent = zodSchema._zod.parent;
+    if (parent && parent !== ref) {
+      // Ensure parent is processed first so its def has inherited properties
+      flattenRef(parent);
+      const parentSeen = ctx.seen.get(parent);
+      if (parentSeen?.schema.$ref) {
+        schema.$ref = parentSeen.schema.$ref;
+        // De-duplicate with parent's definition
+        if (parentSeen.def) {
+          for (const key in schema) {
+            if (key === "$ref" || key === "allOf") continue;
+            if (key in parentSeen.def && JSON.stringify(schema[key]) === JSON.stringify(parentSeen.def[key])) {
+              delete schema[key];
+            }
+          }
+        }
       }
     }
 
     // execute overrides
-    if (!seen.isParent)
-      ctx.override({
-        zodSchema: zodSchema as schemas.$ZodTypes,
-        jsonSchema: schema,
-        path: seen.path ?? [],
-      });
+    ctx.override({
+      zodSchema: zodSchema as schemas.$ZodTypes,
+      jsonSchema: schema,
+      path: seen.path ?? [],
+    });
   };
 
   for (const entry of [...ctx.seen.entries()].reverse()) {
@@ -442,8 +501,8 @@ export function finalize<T extends schemas.$ZodType>(
       value: {
         ...schema["~standard"],
         jsonSchema: {
-          input: createStandardJSONSchemaMethod(schema, "input"),
-          output: createStandardJSONSchemaMethod(schema, "output"),
+          input: createStandardJSONSchemaMethod(schema, "input", ctx.processors),
+          output: createStandardJSONSchemaMethod(schema, "output", ctx.processors),
         },
       },
       enumerable: false,
@@ -544,10 +603,10 @@ export const createToJSONSchemaMethod =
  */
 type StandardJSONSchemaMethodParams = Parameters<StandardJSONSchemaV1["~standard"]["jsonSchema"]["input"]>[0];
 export const createStandardJSONSchemaMethod =
-  <T extends schemas.$ZodType>(schema: T, io: "input" | "output") =>
+  <T extends schemas.$ZodType>(schema: T, io: "input" | "output", processors: Record<string, Processor> = {}) =>
   (params?: StandardJSONSchemaMethodParams): JSONSchema.BaseSchema => {
     const { libraryOptions, target } = params ?? {};
-    const ctx = initializeContext({ ...(libraryOptions ?? {}), target, io, processors: {} });
+    const ctx = initializeContext({ ...(libraryOptions ?? {}), target, io, processors });
     process(schema, ctx);
     extractDefs(ctx, schema);
     return finalize(ctx, schema);

@@ -103,8 +103,28 @@ describe("toJSONSchema", () => {
     expect(z.toJSONSchema(z.iso.time())).toMatchInlineSnapshot(`
       {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "format": "time",
         "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?$",
+        "type": "string",
+      }
+    `);
+    expect(z.toJSONSchema(z.iso.time({ precision: -1 }))).toMatchInlineSnapshot(`
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+        "type": "string",
+      }
+    `);
+    expect(z.toJSONSchema(z.iso.time({ precision: 0 }))).toMatchInlineSnapshot(`
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$",
+        "type": "string",
+      }
+    `);
+    expect(z.toJSONSchema(z.iso.time({ precision: 3 }))).toMatchInlineSnapshot(`
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}$",
         "type": "string",
       }
     `);
@@ -344,7 +364,6 @@ describe("toJSONSchema", () => {
     expect(z.toJSONSchema(z.iso.time())).toMatchInlineSnapshot(`
       {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "format": "time",
         "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?$",
         "type": "string",
       }
@@ -852,6 +871,171 @@ describe("toJSONSchema", () => {
           "type": "boolean",
         },
         "type": "object",
+      }
+    `);
+  });
+
+  test("record with enum keys adds required", () => {
+    const schema = z.record(z.enum(["key1", "key2"]), z.number());
+
+    expect(z.toJSONSchema(schema)).toMatchInlineSnapshot(`
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": {
+          "type": "number",
+        },
+        "propertyNames": {
+          "enum": [
+            "key1",
+            "key2",
+          ],
+          "type": "string",
+        },
+        "required": [
+          "key1",
+          "key2",
+        ],
+        "type": "object",
+      }
+    `);
+  });
+
+  test("record filters enum values to strings and numbers for required", () => {
+    enum NumberEnum {
+      Zero = 0,
+      One = 1,
+    }
+    const schema = z.record(z.enum(NumberEnum), z.string());
+
+    expect(z.toJSONSchema(schema)).toMatchInlineSnapshot(`
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": {
+          "type": "string",
+        },
+        "propertyNames": {
+          "enum": [
+            0,
+            1,
+          ],
+          "type": "number",
+        },
+        "required": [
+          0,
+          1,
+        ],
+        "type": "object",
+      }
+    `);
+  });
+
+  test("strict record with regex key uses propertyNames", () => {
+    const schema = z.record(z.string().regex(/^label:[a-z]{2}$/), z.string());
+
+    expect(z.toJSONSchema(schema)).toMatchInlineSnapshot(`
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": {
+          "type": "string",
+        },
+        "propertyNames": {
+          "pattern": "^label:[a-z]{2}$",
+          "type": "string",
+        },
+        "type": "object",
+      }
+    `);
+  });
+
+  test("looseRecord with regex key uses patternProperties", () => {
+    const schema = z.looseRecord(z.string().regex(/^label:[a-z]{2}$/), z.string());
+
+    expect(z.toJSONSchema(schema)).toMatchInlineSnapshot(`
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "patternProperties": {
+          "^label:[a-z]{2}$": {
+            "type": "string",
+          },
+        },
+        "type": "object",
+      }
+    `);
+  });
+
+  test("looseRecord with multiple regex patterns uses patternProperties", () => {
+    const schema = z.looseRecord(
+      z
+        .string()
+        .regex(/^prefix_/)
+        .regex(/_suffix$/),
+      z.number()
+    );
+
+    expect(z.toJSONSchema(schema)).toMatchInlineSnapshot(`
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "patternProperties": {
+          "^prefix_": {
+            "type": "number",
+          },
+          "_suffix$": {
+            "type": "number",
+          },
+        },
+        "type": "object",
+      }
+    `);
+  });
+
+  test("looseRecord without regex key uses propertyNames", () => {
+    // looseRecord with plain string key should still use propertyNames
+    const schema = z.looseRecord(z.string(), z.boolean());
+
+    expect(z.toJSONSchema(schema)).toMatchInlineSnapshot(`
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": {
+          "type": "boolean",
+        },
+        "propertyNames": {
+          "type": "string",
+        },
+        "type": "object",
+      }
+    `);
+  });
+
+  test("intersection of object with looseRecord uses patternProperties", () => {
+    const zLabeled = z.object({ label: z.string() });
+    const zLocalizedLabeled = z.looseRecord(z.string().regex(/^label:[a-z]{2}$/), z.string());
+    const schema = zLabeled.and(zLocalizedLabeled);
+
+    expect(z.toJSONSchema(schema)).toMatchInlineSnapshot(`
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "label",
+            ],
+            "type": "object",
+          },
+          {
+            "patternProperties": {
+              "^label:[a-z]{2}$": {
+                "type": "string",
+              },
+            },
+            "type": "object",
+          },
+        ],
       }
     `);
   });
@@ -1647,7 +1831,7 @@ test("override: do not run on references", () => {
     },
   });
 
-  expect(overrideCount).toBe(6);
+  expect(overrideCount).toBe(12);
 });
 
 test("override with refs", () => {
@@ -1936,6 +2120,47 @@ test("describe with id", () => {
         "previous": {
           "$ref": "#/$defs/jobId",
           "description": "Previous job",
+        },
+      },
+      "required": [
+        "current",
+        "previous",
+      ],
+      "type": "object",
+    }
+  `);
+});
+
+test("describe with id on wrapper", () => {
+  // Test that $ref propagation works when processor sets a different ref (readonly -> innerType)
+  // but parent was extracted due to having an id
+  const roJobId = z.string().readonly().meta({ id: "roJobId" });
+
+  const a = z.toJSONSchema(
+    z.object({
+      current: roJobId.describe("Current readonly job"),
+      previous: roJobId.describe("Previous readonly job"),
+    })
+  );
+  expect(a).toMatchInlineSnapshot(`
+    {
+      "$defs": {
+        "roJobId": {
+          "id": "roJobId",
+          "readOnly": true,
+          "type": "string",
+        },
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "current": {
+          "$ref": "#/$defs/roJobId",
+          "description": "Current readonly job",
+        },
+        "previous": {
+          "$ref": "#/$defs/roJobId",
+          "description": "Previous readonly job",
         },
       },
       "required": [
@@ -2681,22 +2906,17 @@ test("z.file()", () => {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "anyOf": [
         {
-          "contentEncoding": "binary",
           "contentMediaType": "image/png",
-          "format": "binary",
-          "maxLength": 10000,
-          "minLength": 1000,
-          "type": "string",
         },
         {
-          "contentEncoding": "binary",
           "contentMediaType": "image/jpg",
-          "format": "binary",
-          "maxLength": 10000,
-          "minLength": 1000,
-          "type": "string",
         },
       ],
+      "contentEncoding": "binary",
+      "format": "binary",
+      "maxLength": 10000,
+      "minLength": 1000,
+      "type": "string",
     }
   `);
 });

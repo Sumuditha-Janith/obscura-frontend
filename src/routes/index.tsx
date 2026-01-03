@@ -9,6 +9,9 @@ const Login = lazy(() => import("../pages/Login"));
 const Dashboard = lazy(() => import("../pages/Dashboard"));
 const ForgotPassword = lazy(() => import("../pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("../pages/ResetPassword"));
+const Movies = lazy(() => import("../pages/Movies"));
+const Watchlist = lazy(() => import("../pages/Watchlist"));
+const MediaDetails = lazy(() => import("../pages/MediaDetails"));
 
 // Layout component for authenticated pages
 const AuthenticatedLayout = lazy(() => import("../components/AuthenticatedLayout"));
@@ -40,7 +43,30 @@ export default function Router() {
               </ProtectedRoute>
             }
           />
-          
+          <Route
+            path="/movies"
+            element={
+              <ProtectedRoute>
+                <Movies />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/watchlist"
+            element={
+              <ProtectedRoute>
+                <Watchlist />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/media/:type/:id"
+            element={
+              <ProtectedRoute>
+                <MediaDetails  />
+              </ProtectedRoute>
+            }
+          />
           {/* Catch all route */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
