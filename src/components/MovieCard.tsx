@@ -14,7 +14,8 @@ interface MovieCardProps {
     release_date: string;
     vote_average: number;
     vote_count?: number;
-    type: "movie" | "tv";
+    type?: "movie" | "tv";  // Make optional
+    media_type?: "movie" | "tv";  // Add media_type as optional
     genre_ids?: number[];
   };
   isInWatchlist?: boolean;
@@ -37,10 +38,16 @@ export default function MovieCard({
   const [inWatchlist, setInWatchlist] = useState(isInWatchlist);
   const [currentStatus, setCurrentStatus] = useState(watchStatus || "planned");
 
+  // Helper function to get media type from either property
+  const getMediaType = (): "movie" | "tv" => {
+    return media.type || media.media_type || "movie"; // Default to movie if not found
+  };
+
   const posterUrl = TMDBService.getImageUrl(media.poster_path, "w342");
   const releaseYear = TMDBService.getReleaseYear(media.release_date);
   const formattedRating = TMDBService.formatRating(media.vote_average);
   const truncatedOverview = TMDBService.truncateOverview(media.overview);
+  const mediaType = getMediaType(); // Get the actual media type
 
   const handleAddToWatchlist = async () => {
     if (!user) {
@@ -53,15 +60,17 @@ export default function MovieCard({
       await addToWatchlist({
         tmdbId: media.id,
         title: media.title,
-        type: media.type,
+        type: mediaType,  // Use mediaType instead of media.type
         posterPath: media.poster_path,
         releaseDate: media.release_date,
       });
       setInWatchlist(true);
       setCurrentStatus("planned");
       if (onStatusChange) onStatusChange();
-    } catch (error) {
+      alert("Added to watchlist successfully!"); // Add feedback
+    } catch (error: any) {
       console.error("Failed to add to watchlist:", error);
+      alert(error.response?.data?.message || "Failed to add to watchlist");
     } finally {
       setLoading(false);
     }
@@ -75,8 +84,10 @@ export default function MovieCard({
       await removeFromWatchlist(watchlistId);
       setInWatchlist(false);
       if (onStatusChange) onStatusChange();
-    } catch (error) {
+      alert("Removed from watchlist!");
+    } catch (error: any) {
       console.error("Failed to remove from watchlist:", error);
+      alert(error.response?.data?.message || "Failed to remove from watchlist");
     } finally {
       setLoading(false);
     }
@@ -90,8 +101,9 @@ export default function MovieCard({
       await updateWatchStatus(watchlistId, { watchStatus: newStatus });
       setCurrentStatus(newStatus);
       if (onStatusChange) onStatusChange();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update status:", error);
+      alert(error.response?.data?.message || "Failed to update status");
     } finally {
       setLoading(false);
     }
@@ -120,7 +132,7 @@ export default function MovieCard({
       {/* Poster Image */}
       <div className="relative overflow-hidden h-64">
         <img
-          src={posterUrl}
+          src={posterUrl || "/placeholder-poster.jpg"}
           alt={media.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
@@ -133,7 +145,7 @@ export default function MovieCard({
         {/* Type Badge */}
         <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-sm px-2 py-1 rounded-full">
           <span className="text-xs font-medium text-slate-300">
-            {media.type === "movie" ? "🎬 Movie" : "📺 TV Show"}
+            {mediaType === "movie" ? "🎬 Movie" : "📺 TV Show"}
           </span>
         </div>
 
@@ -187,7 +199,7 @@ export default function MovieCard({
               )}
               
               <Link
-                to={`/media/${media.type}/${media.id}`}
+                to={`/media/${mediaType}/${media.id}`}
                 className="block w-full bg-slate-800/90 hover:bg-slate-700/90 text-slate-300 hover:text-slate-50 font-medium py-2 px-4 rounded-lg transition duration-200 text-center"
               >
                 View Details
@@ -217,7 +229,7 @@ export default function MovieCard({
         {/* Quick Stats */}
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-700">
           <span className="text-xs text-slate-500">
-            {(media.vote_count || 0).toLocaleString()} votes {/* Add default value */}
+            {(media.vote_count || 0).toLocaleString()} votes
           </span>
           {inWatchlist && (
             <Link
