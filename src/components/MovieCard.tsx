@@ -4,6 +4,7 @@ import { addToWatchlist, removeFromWatchlist, updateWatchStatus } from "../servi
 import TMDBService from "../services/tmdb.service";
 import { useAuth } from "../context/authContext";
 import { debug } from "../utils/debug";
+import api from "../services/api";
 
 interface MovieCardProps {
     media: {
@@ -27,13 +28,13 @@ interface MovieCardProps {
 }
 
 export default function MovieCard({
-                                      media,
-                                      isInWatchlist = false,
-                                      watchlistId,
-                                      watchStatus,
-                                      onStatusChange,
-                                      showActions = true
-                                  }: MovieCardProps) {
+    media,
+    isInWatchlist = false,
+    watchlistId,
+    watchStatus,
+    onStatusChange,
+    showActions = true
+}: MovieCardProps) {
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [inWatchlist, setInWatchlist] = useState(isInWatchlist);
@@ -72,24 +73,47 @@ export default function MovieCard({
 
         setLoading(true);
         try {
-            debug.log('MovieCard', 'Adding to watchlist', { title: media.title });
-            await addToWatchlist({
-                tmdbId: media.id,
-                title: media.title,
-                type: mediaType,
-                posterPath: media.poster_path,
-                releaseDate: media.release_date,
+            debug.log('MovieCard', 'Adding to watchlist', { 
+                title: media.title, 
+                type: mediaType 
             });
+
+            if (mediaType === "movie") {
+                // Add movie to watchlist
+                await addToWatchlist({
+                    tmdbId: media.id,
+                    title: media.title,
+                    type: "movie",
+                    posterPath: media.poster_path,
+                    releaseDate: media.release_date,
+                });
+            } else {
+                // Add TV show to watchlist (with different endpoint)
+                await api.post("/media/watchlist/tv", {
+                    tmdbId: media.id,
+                    title: media.title,
+                    type: "tv",
+                    posterPath: media.poster_path,
+                    backdrop_path: media.backdrop_path,
+                    releaseDate: media.release_date,
+                });
+            }
+
             setInWatchlist(true);
             setCurrentStatus("planned");
             if (onStatusChange) {
                 debug.log('MovieCard', 'Calling onStatusChange for add', { status: "planned" });
                 onStatusChange("planned");
             }
-            alert("Added to watchlist successfully!");
+            alert(`Added to ${mediaType === "movie" ? "movies" : "TV shows"} watchlist successfully!`);
         } catch (error: any) {
             debug.error('MovieCard', 'Failed to add to watchlist', error);
-            alert(error.response?.data?.message || "Failed to add to watchlist");
+            if (error.response?.status === 400 && error.response?.data?.message?.includes("already in your watchlist")) {
+                alert("This item is already in your watchlist!");
+                setInWatchlist(true);
+            } else {
+                alert(error.response?.data?.message || `Failed to add to ${mediaType} watchlist`);
+            }
         } finally {
             setLoading(false);
         }
@@ -164,6 +188,14 @@ export default function MovieCard({
         }
     };
 
+    const getAddButtonText = () => {
+        if (mediaType === "movie") {
+            return loading ? "Adding..." : "Add to Watchlist";
+        } else {
+            return loading ? "Adding TV Show..." : "Add TV Show";
+        }
+    };
+
     return (
         <div className="bg-slate-800 rounded-2xl overflow-hidden border border-slate-700 hover:border-slate-600 transition-all duration-300 hover:scale-[1.02] group">
             {/* Poster Image */}
@@ -181,9 +213,9 @@ export default function MovieCard({
 
                 {/* Type Badge */}
                 <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-sm px-2 py-1 rounded-full">
-          <span className="text-xs font-medium text-slate-300">
-            {mediaType === "movie" ? "🎬 Movie" : "📺 TV Show"}
-          </span>
+                    <span className="text-xs font-medium text-slate-300">
+                        {mediaType === "movie" ? "🎬 Movie" : "📺 TV Show"}
+                    </span>
                 </div>
 
                 {/* Action Buttons Overlay */}
@@ -201,7 +233,7 @@ export default function MovieCard({
                                     ) : (
                                         <>
                                             <span className="mr-2">➕</span>
-                                            Add to Watchlist
+                                            {getAddButtonText()}
                                         </>
                                     )}
                                 </button>
@@ -215,23 +247,33 @@ export default function MovieCard({
                                         {loading ? "Removing..." : "Remove from Watchlist"}
                                     </button>
 
-                                    {/* Status Selector */}
-                                    <div className="grid grid-cols-3 gap-1">
-                                        {(["planned", "watching", "completed"] as const).map((status) => (
-                                            <button
-                                                key={status}
-                                                onClick={() => handleStatusChange(status)}
-                                                disabled={loading || currentStatus === status}
-                                                className={`py-1 px-2 rounded text-xs font-medium transition ${
-                                                    currentStatus === status
-                                                        ? getStatusColor(status)
-                                                        : "bg-slate-900/70 text-slate-400 hover:bg-slate-800"
-                                                }`}
-                                            >
-                                                {getStatusIcon(status)} {status.charAt(0).toUpperCase() + status.slice(1)}
-                                            </button>
-                                        ))}
-                                    </div>
+                                    {/* Status Selector - Only for movies, TV shows have episode tracking */}
+                                    {mediaType === "movie" && (
+                                        <div className="grid grid-cols-3 gap-1">
+                                            {(["planned", "watching", "completed"] as const).map((status) => (
+                                                <button
+                                                    key={status}
+                                                    onClick={() => handleStatusChange(status)}
+                                                    disabled={loading || currentStatus === status}
+                                                    className={`py-1 px-2 rounded text-xs font-medium transition ${
+                                                        currentStatus === status
+                                                            ? getStatusColor(status)
+                                                            : "bg-slate-900/70 text-slate-400 hover:bg-slate-800"
+                                                    }`}
+                                                >
+                                                    {getStatusIcon(status)} {status.charAt(0).toUpperCase() + status.slice(1)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {mediaType === "tv" && (
+                                        <div className="text-center py-1">
+                                            <span className="text-xs text-slate-400">
+                                                Track episodes in watchlist
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -257,18 +299,34 @@ export default function MovieCard({
 
                 {/* Quick Stats */}
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-700">
-          <span className="text-xs text-slate-500">
-            {(media.vote_count || 0).toLocaleString()} votes
-          </span>
+                    <span className="text-xs text-slate-500">
+                        {(media.vote_count || 0).toLocaleString()} votes
+                    </span>
 
                     {/* Watch Status Badge */}
-                    {inWatchlist && (
+                    {inWatchlist && mediaType === "movie" && (
                         <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(currentStatus)}`}>
                             <span className="mr-1">{getStatusIcon(currentStatus)}</span>
                             {currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
                         </div>
                     )}
+
+                    {inWatchlist && mediaType === "tv" && (
+                        <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-600 text-blue-100">
+                            <span className="mr-1">📺</span>
+                            TV Show
+                        </div>
+                    )}
                 </div>
+
+                {/* Media Type Indicator */}
+                {!inWatchlist && (
+                    <div className="mt-2 pt-2 border-t border-slate-700 text-center">
+                        <span className="text-xs text-slate-500">
+                            {mediaType === "movie" ? "🎬 Movie • Add to track" : "📺 TV Show • Add to track episodes"}
+                        </span>
+                    </div>
+                )}
             </div>
         </div>
     );

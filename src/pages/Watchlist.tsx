@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { getWatchlist, getWatchlistStats, updateWatchStatus, removeFromWatchlist } from "../services/media.service";
 import MovieCard from "../components/MovieCard";
+import TVEpisodeTracker from "../components/TVEpisodeTracker";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/authContext";
 import { debug } from "../utils/debug";
 import api from "../services/api";
+import TMDBService from "../services/tmdb.service";
 
 interface WatchlistItem {
     _id: string;
@@ -12,6 +14,7 @@ interface WatchlistItem {
     title: string;
     type: "movie" | "tv";
     posterPath: string;
+    backdrop_path?: string;
     releaseDate: string;
     watchStatus: "planned" | "watching" | "completed";
     rating?: number;
@@ -19,7 +22,24 @@ interface WatchlistItem {
     vote_average?: number;
     vote_count?: number;
     overview?: string;
+    
+    // TV Show specific fields
+    seasonNumber?: number;
+    episodeNumber?: number;
+    episodeTitle?: string;
+    seasonCount?: number;
+    episodeCount?: number;
+}
+
+interface TVShowDetails {
+    _id: string;
+    tmdbId: number;
+    title: string;
+    posterPath: string;
     backdrop_path?: string;
+    seasonCount?: number;
+    episodeCount?: number;
+    watchStatus: "planned" | "watching" | "completed";
 }
 
 interface WatchlistStats {
@@ -60,10 +80,13 @@ interface WatchlistStats {
 export default function Watchlist() {
     const { user } = useAuth();
     const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+    const [movies, setMovies] = useState<WatchlistItem[]>([]);
+    const [tvShows, setTVShows] = useState<WatchlistItem[]>([]);
     const [stats, setStats] = useState<WatchlistStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshingStats, setRefreshingStats] = useState(false);
     const [activeFilter, setActiveFilter] = useState<string>("all");
+    const [contentType, setContentType] = useState<"movies" | "tv">("movies");
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
     const [debugInfo, setDebugInfo] = useState<string[]>([]);
 
@@ -93,14 +116,22 @@ export default function Watchlist() {
             });
             addDebugInfo(`Got ${response.data.length} watchlist items`);
 
+            // Separate movies and TV shows
+            const moviesList = response.data.filter((item: WatchlistItem) => item.type === "movie");
+            const tvShowsList = response.data.filter((item: WatchlistItem) => item.type === "tv");
+            
+            setMovies(moviesList);
+            setTVShows(tvShowsList);
+            setWatchlist(response.data);
+
             // Calculate local stats from watchlist
             calculateLocalStats(response.data);
-
-            setWatchlist(response.data);
         } catch (error: any) {
             debug.error('Watchlist', 'Failed to fetch watchlist', error);
             addDebugInfo(`Error fetching watchlist: ${error.message}`);
             setWatchlist([]);
+            setMovies([]);
+            setTVShows([]);
         } finally {
             setLoading(false);
         }
@@ -114,9 +145,11 @@ export default function Watchlist() {
 
         const totalItems = items.length;
 
-        // Calculate completed items
-        const completedItems = items.filter(item => item.watchStatus === "completed");
-        const completedCount = completedItems.length;
+        // Calculate completed items (movies only for now)
+        const completedMovies = items.filter(item => 
+            item.type === "movie" && item.watchStatus === "completed"
+        );
+        const completedCount = completedMovies.length;
 
         // Calculate planned items
         const plannedItems = items.filter(item => item.watchStatus === "planned");
@@ -126,16 +159,17 @@ export default function Watchlist() {
         const watchingItems = items.filter(item => item.watchStatus === "watching");
         const watchingCount = watchingItems.length;
 
-        // Calculate watch times
-        const totalWatchTime = completedItems.reduce((sum, item) => sum + (item.watchTimeMinutes || 0), 0);
+        // Calculate watch times (movies only for now)
+        const totalWatchTime = completedMovies.reduce((sum, item) => sum + (item.watchTimeMinutes || 0), 0);
 
         // Calculate movie stats
         const movies = items.filter(item => item.type === "movie");
-        const completedMovies = movies.filter(item => item.watchStatus === "completed");
-        const movieWatchTime = completedMovies.reduce((sum, item) => sum + (item.watchTimeMinutes || 0), 0);
+        const completedMoviesList = movies.filter(item => item.watchStatus === "completed");
+        const movieWatchTime = completedMoviesList.reduce((sum, item) => sum + (item.watchTimeMinutes || 0), 0);
 
         // Calculate TV stats
         const tvShows = items.filter(item => item.type === "tv");
+        // TV show completion logic will be handled differently - based on episodes
         const completedTV = tvShows.filter(item => item.watchStatus === "completed");
         const tvWatchTime = completedTV.reduce((sum, item) => sum + (item.watchTimeMinutes || 0), 0);
 
@@ -166,7 +200,7 @@ export default function Watchlist() {
 
             movieStats: {
                 total: movies.length,
-                completed: completedMovies.length,
+                completed: completedMoviesList.length,
                 watchTime: movieWatchTime,
                 watchTimeFormatted: formatTime(movieWatchTime)
             },
@@ -283,6 +317,17 @@ export default function Watchlist() {
                 : item
         );
 
+        // Update movies and TV shows lists
+        if (itemToUpdate.type === "movie") {
+            setMovies(prev => prev.map(item => 
+                item._id === mediaId ? { ...item, watchStatus: newStatus } : item
+            ));
+        } else {
+            setTVShows(prev => prev.map(item => 
+                item._id === mediaId ? { ...item, watchStatus: newStatus } : item
+            ));
+        }
+
         // Update local stats immediately
         calculateLocalStats(updatedWatchlist);
         setWatchlist(updatedWatchlist);
@@ -343,6 +388,30 @@ export default function Watchlist() {
                 console.log(`  - ${item.title}: ${item.watchStatus} (${item.watchTimeMinutes} mins)`);
             });
         }
+    };
+
+    const getFilteredMovies = () => {
+        if (activeFilter === "all") return movies;
+        return movies.filter(movie => movie.watchStatus === activeFilter);
+    };
+
+    const getFilteredTVShows = () => {
+        if (activeFilter === "all") return tvShows;
+        return tvShows.filter(tv => tv.watchStatus === activeFilter);
+    };
+
+    // Helper function to convert WatchlistItem to TVShowDetails
+    const convertToTVShowDetails = (item: WatchlistItem): TVShowDetails => {
+        return {
+            _id: item._id,
+            tmdbId: item.tmdbId,
+            title: item.title,
+            posterPath: item.posterPath,
+            backdrop_path: item.backdrop_path,
+            seasonCount: item.seasonCount || 1, // Default to 1 if undefined
+            episodeCount: item.episodeCount || 1, // Default to 1 if undefined
+            watchStatus: item.watchStatus
+        };
     };
 
     if (loading) {
@@ -433,9 +502,8 @@ export default function Watchlist() {
                         )}
                     </div>
                     <div className="mt-2 text-xs text-slate-500">
-                        Watchlist: {watchlist.length} items |
-                        Filter: {activeFilter} |
-                        Stats: {stats ? 'Loaded' : 'None'} |
+                        Movies: {movies.length} | TV Shows: {tvShows.length} |
+                        Filter: {activeFilter} | Active Tab: {contentType} |
                         Completed: {stats?.completedCount || 0}
                     </div>
                 </div>
@@ -450,8 +518,8 @@ export default function Watchlist() {
                                 <span className={`text-sm font-bold ${
                                     stats.movieStats.completed > 0 ? "text-green-400" : "text-slate-400"
                                 }`}>
-                  {stats.movieStats.completed}/{stats.movieStats.total}
-                </span>
+                                    {stats.movieStats.completed}/{stats.movieStats.total}
+                                </span>
                             </div>
                             <p className="text-slate-400 text-sm mb-1">Movies</p>
                             <p className="text-2xl font-bold">{stats.movieStats.total}</p>
@@ -468,8 +536,8 @@ export default function Watchlist() {
                                 <span className={`text-sm font-bold ${
                                     stats.tvStats.completed > 0 ? "text-green-400" : "text-slate-400"
                                 }`}>
-                  {stats.tvStats.completed}/{stats.tvStats.total}
-                </span>
+                                    {stats.tvStats.completed}/{stats.tvStats.total}
+                                </span>
                             </div>
                             <p className="text-slate-400 text-sm mb-1">TV Shows</p>
                             <p className="text-2xl font-bold">{stats.tvStats.total}</p>
@@ -520,8 +588,33 @@ export default function Watchlist() {
                     </div>
                 )}
 
+                {/* Content Type Tabs */}
+                <div className="mb-6">
+                    <div className="flex space-x-1 border-b border-slate-700">
+                        <button
+                            onClick={() => setContentType("movies")}
+                            className={`px-4 py-3 font-medium transition ${
+                                contentType === "movies"
+                                    ? "text-rose-400 border-b-2 border-rose-400"
+                                    : "text-slate-400 hover:text-slate-300"
+                            }`}
+                        >
+                            🎬 Movies ({getFilteredMovies().length})
+                        </button>
+                        <button
+                            onClick={() => setContentType("tv")}
+                            className={`px-4 py-3 font-medium transition ${
+                                contentType === "tv"
+                                    ? "text-rose-400 border-b-2 border-rose-400"
+                                    : "text-slate-400 hover:text-slate-300"
+                            }`}
+                        >
+                            📺 TV Shows ({getFilteredTVShows().length})
+                        </button>
+                    </div>
+                </div>
                 {/* Filter Tabs */}
-                <div className="mb-8">
+                <div className="mb-4">
                     <div className="flex space-x-1 border-b border-slate-700">
                         <button
                             onClick={() => setActiveFilter("all")}
@@ -565,12 +658,13 @@ export default function Watchlist() {
                         </button>
                     </div>
                 </div>
-
-                {/* Watchlist Content */}
-                {watchlist.length > 0 ? (
-                    <>
+                
+                {/* Separated Content */}
+                {contentType === "movies" ? (
+                    // Movies Section
+                    getFilteredMovies().length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                            {watchlist.map((item) => (
+                            {getFilteredMovies().map((item) => (
                                 <div key={item._id} className="relative">
                                     <MovieCard
                                         media={{
@@ -582,7 +676,7 @@ export default function Watchlist() {
                                             release_date: item.releaseDate,
                                             vote_average: item.vote_average || 0,
                                             vote_count: item.vote_count || 0,
-                                            type: item.type,
+                                            type: "movie",
                                         }}
                                         isInWatchlist={true}
                                         watchlistId={item._id}
@@ -601,23 +695,155 @@ export default function Watchlist() {
                                 </div>
                             ))}
                         </div>
-                    </>
-                ) : (
-                    <div className="text-center py-12">
-                        <div className="inline-block p-6 bg-slate-800 rounded-2xl mb-6">
-                            <span className="text-6xl">🎬</span>
+                    ) : (
+                        <div className="text-center py-12">
+                            <div className="inline-block p-6 bg-slate-800 rounded-2xl mb-6">
+                                <span className="text-6xl">🎬</span>
+                            </div>
+                            <h3 className="text-2xl font-bold mb-2">
+                                {activeFilter === "all" 
+                                    ? "No movies in your watchlist" 
+                                    : `No ${activeFilter} movies`
+                                }
+                            </h3>
+                            <p className="text-slate-400 mb-6 max-w-md mx-auto">
+                                {activeFilter === "all" 
+                                    ? "Start building your watchlist by searching for movies you want to watch"
+                                    : `Try adding some movies to your ${activeFilter} list`
+                                }
+                            </p>
+                            <a
+                                href="/movies"
+                                className="inline-block bg-rose-600 hover:bg-rose-700 text-slate-50 font-bold py-3 px-6 rounded-lg transition duration-200"
+                            >
+                                Discover Movies
+                            </a>
                         </div>
-                        <h3 className="text-2xl font-bold mb-2">Your watchlist is empty</h3>
-                        <p className="text-slate-400 mb-6 max-w-md mx-auto">
-                            Start building your watchlist by searching for movies and TV shows you want to watch
-                        </p>
-                        <a
-                            href="/movies"
-                            className="inline-block bg-rose-600 hover:bg-rose-700 text-slate-50 font-bold py-3 px-6 rounded-lg transition duration-200"
-                        >
-                            Discover Movies
-                        </a>
-                    </div>
+                    )
+                ) : (
+                    // TV Shows Section
+                    getFilteredTVShows().length > 0 ? (
+                        <div className="space-y-6">
+                            {getFilteredTVShows().map((item) => {
+                                // Convert WatchlistItem to TVShowDetails
+                                const tvShow: TVShowDetails = convertToTVShowDetails(item);
+                                
+                                return (
+                                    <div key={item._id} className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                                        <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-6">
+                                            {/* TV Show Poster */}
+                                            <div className="md:w-48 flex-shrink-0">
+                                                <div className="relative">
+                                                    <img
+                                                        src={TMDBService.getImageUrl(item.posterPath, "w342")}
+                                                        alt={item.title}
+                                                        className="w-full h-auto rounded-lg shadow-lg"
+                                                    />
+                                                    <div className="absolute top-2 right-2 bg-slate-900/80 backdrop-blur-sm px-2 py-1 rounded-full">
+                                                        <span className="text-sm font-bold text-rose-400">
+                                                            ⭐ {item.vote_average?.toFixed(1) || "N/A"}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* TV Show Info */}
+                                            <div className="flex-1">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div>
+                                                        <h3 className="text-2xl font-bold text-slate-50 mb-2">{item.title}</h3>
+                                                        <div className="flex items-center space-x-3">
+                                                            <span className="text-sm text-slate-400">
+                                                                📅 {item.releaseDate ? new Date(item.releaseDate).getFullYear() : "Unknown"}
+                                                            </span>
+                                                            <span className="text-sm text-slate-400">
+                                                                📺 {item.seasonCount || 1} season{item.seasonCount !== 1 ? 's' : ''}
+                                                            </span>
+                                                            <span className="text-sm text-slate-400">
+                                                                🎬 {item.episodeCount || 1} episode{item.episodeCount !== 1 ? 's' : ''}
+                                                            </span>
+                                                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                                                item.watchStatus === "completed" ? "bg-green-600 text-green-100" :
+                                                                item.watchStatus === "watching" ? "bg-blue-600 text-blue-100" :
+                                                                "bg-slate-600 text-slate-300"
+                                                            }`}>
+                                                                {item.watchStatus}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <button
+                                                        onClick={() => handleRemove(item._id)}
+                                                        className="text-slate-400 hover:text-rose-400 px-3 py-1 rounded-lg hover:bg-slate-700 transition"
+                                                        title="Remove from watchlist"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                                
+                                                <p className="text-slate-300 mb-4 line-clamp-2">
+                                                    {item.overview || "No description available"}
+                                                </p>
+                                                
+                                                {/* Episode Tracker */}
+                                                <div className="mt-2">
+                                                    <TVEpisodeTracker tvShow={tvShow} />
+                                                </div>
+                                                
+                                                {/* Quick Actions */}
+                                                <div className="flex space-x-3 mt-4 pt-4 border-t border-slate-700">
+                                                    <button
+                                                        onClick={() => handleStatusUpdate(item._id, "watching")}
+                                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                                                            item.watchStatus === "watching"
+                                                                ? "bg-blue-600 text-blue-100"
+                                                                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                                                        }`}
+                                                    >
+                                                        👀 Start Watching
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleStatusUpdate(item._id, "completed")}
+                                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                                                            item.watchStatus === "completed"
+                                                                ? "bg-green-600 text-green-100"
+                                                                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                                                        }`}
+                                                    >
+                                                        ✅ Mark Complete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="text-center py-12">
+                            <div className="inline-block p-6 bg-slate-800 rounded-2xl mb-6">
+                                <span className="text-6xl">📺</span>
+                            </div>
+                            <h3 className="text-2xl font-bold mb-2">
+                                {activeFilter === "all" 
+                                    ? "No TV shows in your watchlist" 
+                                    : `No ${activeFilter} TV shows`
+                                }
+                            </h3>
+                            <p className="text-slate-400 mb-6 max-w-md mx-auto">
+                                {activeFilter === "all" 
+                                    ? "Add TV shows to track episodes and seasons individually"
+                                    : `Try adding some TV shows to your ${activeFilter} list`
+                                }
+                            </p>
+                            <a
+                                href="/movies"
+                                className="inline-block bg-rose-600 hover:bg-rose-700 text-slate-50 font-bold py-3 px-6 rounded-lg transition duration-200"
+                            >
+                                Discover TV Shows
+                            </a>
+                        </div>
+                    )
                 )}
 
                 {/* Test Controls */}
