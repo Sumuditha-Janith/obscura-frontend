@@ -608,6 +608,32 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                     </div>
                 )}
 
+                                {/* Content Type Tabs */}
+                <div className="mb-6">
+                    <div className="flex space-x-1 border-b border-slate-700">
+                        <button
+                            onClick={() => setContentType("movies")}
+                            className={`px-4 py-3 font-medium transition ${
+                                contentType === "movies"
+                                    ? "text-rose-400 border-b-2 border-rose-400"
+                                    : "text-slate-400 hover:text-slate-300"
+                            }`}
+                        >
+                            🎬 Movies ({getFilteredMovies().length})
+                        </button>
+                        <button
+                            onClick={() => setContentType("tv")}
+                            className={`px-4 py-3 font-medium transition ${
+                                contentType === "tv"
+                                    ? "text-rose-400 border-b-2 border-rose-400"
+                                    : "text-slate-400 hover:text-slate-300"
+                            }`}
+                        >
+                            📺 TV Shows ({getFilteredTVShows().length})
+                        </button>
+                    </div>
+                </div>
+
                 {/* Filter Tabs */}
                 <div className="mb-4">
                     <div className="flex space-x-1 border-b border-slate-700">
@@ -650,32 +676,6 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                             }`}
                         >
                             Completed ({stats?.completedCount || 0})
-                        </button>
-                    </div>
-                </div>
-
-                {/* Content Type Tabs */}
-                <div className="mb-6">
-                    <div className="flex space-x-1 border-b border-slate-700">
-                        <button
-                            onClick={() => setContentType("movies")}
-                            className={`px-4 py-3 font-medium transition ${
-                                contentType === "movies"
-                                    ? "text-rose-400 border-b-2 border-rose-400"
-                                    : "text-slate-400 hover:text-slate-300"
-                            }`}
-                        >
-                            🎬 Movies ({getFilteredMovies().length})
-                        </button>
-                        <button
-                            onClick={() => setContentType("tv")}
-                            className={`px-4 py-3 font-medium transition ${
-                                contentType === "tv"
-                                    ? "text-rose-400 border-b-2 border-rose-400"
-                                    : "text-slate-400 hover:text-slate-300"
-                            }`}
-                        >
-                            📺 TV Shows ({getFilteredTVShows().length})
                         </button>
                     </div>
                 </div>
