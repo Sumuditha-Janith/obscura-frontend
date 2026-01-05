@@ -13,6 +13,7 @@ const Movies = lazy(() => import("../pages/Movies"));
 const TVShows = lazy(() => import("../pages/TVShows")); // Add this line
 const Watchlist = lazy(() => import("../pages/Watchlist"));
 const MediaDetails = lazy(() => import("../pages/MediaDetails"));
+const SearchResults = lazy(() => import("../pages/SearchResults")); // Add this
 
 // Layout component for authenticated pages
 const AuthenticatedLayout = lazy(() => import("../components/AuthenticatedLayout"));
@@ -36,6 +37,15 @@ export default function Router() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:token" element={<ResetPassword />} />
           
+          <Route
+            path="/search-results"
+            element={
+              <ProtectedRoute>
+                <SearchResults />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Protected Routes with Layout */}
           <Route
             path="/home"

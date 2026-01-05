@@ -190,19 +190,21 @@ export default function Home() {
               {getActiveContent().length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                   {getActiveContent().slice(0, 20).map((media) => (
-                    // <MovieCard
-                    //   key={`${media.id}-${media.type}`}
-                    //   media={media}
-                    //   showActions={true}
-                    // />
                     <MovieCard
                       key={`${media.id}-${media.type}`}
                       media={{
-                        ...media,
-                        backdrop_path: media.backdrop_path || "",
+                        id: media.id,
+                        title: media.title,
+                        overview: media.overview || "",
+                        poster_path: media.poster_path || "",
+                        backdrop_path: media.backdrop_path,
+                        release_date: media.release_date || "",
+                        vote_average: media.vote_average || 0,
                         vote_count: media.vote_count || 0,
-                        }}
-                            showActions={true}
+                        type: media.type,
+                        genre_ids: media.genre_ids || []
+                      }}
+                      showActions={true}
                     />
                   ))}
                 </div>
