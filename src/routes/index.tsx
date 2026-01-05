@@ -10,6 +10,7 @@ const Home = lazy(() => import("../pages/Home"));
 const ForgotPassword = lazy(() => import("../pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("../pages/ResetPassword"));
 const Movies = lazy(() => import("../pages/Movies"));
+const TVShows = lazy(() => import("../pages/TVShows")); // Add this line
 const Watchlist = lazy(() => import("../pages/Watchlist"));
 const MediaDetails = lazy(() => import("../pages/MediaDetails"));
 
@@ -34,6 +35,7 @@ export default function Router() {
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:token" element={<ResetPassword />} />
+          
           {/* Protected Routes with Layout */}
           <Route
             path="/home"
@@ -52,6 +54,14 @@ export default function Router() {
             }
           />
           <Route
+            path="/tvshows"
+            element={
+              <ProtectedRoute>
+                <TVShows />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/watchlist"
             element={
               <ProtectedRoute>
@@ -63,10 +73,11 @@ export default function Router() {
             path="/media/:type/:id"
             element={
               <ProtectedRoute>
-                <MediaDetails  />
+                <MediaDetails />
               </ProtectedRoute>
             }
           />
+          
           {/* Catch all route */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
