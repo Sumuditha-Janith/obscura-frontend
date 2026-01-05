@@ -190,7 +190,7 @@ export default function MovieCard({
 
     const getAddButtonText = () => {
         if (mediaType === "movie") {
-            return loading ? "Adding..." : "Add to Watchlist";
+            return loading ? "Adding..." : "Add Movie";
         } else {
             return loading ? "Adding TV Show..." : "Add TV Show";
         }

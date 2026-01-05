@@ -4,15 +4,13 @@ import {
   getWatchlistStats, 
   updateWatchStatus, 
   removeFromWatchlist,
-  getEpisodeStatistics,
-  EpisodeStatistics
+  getEpisodeStatistics
 } from "../services/media.service";
 import MovieCard from "../components/MovieCard";
 import TVEpisodeTracker from "../components/TVEpisodeTracker";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/authContext";
 import { debug } from "../utils/debug";
-import api from "../services/api";
 import TMDBService from "../services/tmdb.service";
 
 interface WatchlistItem {
@@ -91,7 +89,7 @@ export default function Watchlist() {
     const [movies, setMovies] = useState<WatchlistItem[]>([]);
     const [tvShows, setTVShows] = useState<WatchlistItem[]>([]);
     const [stats, setStats] = useState<WatchlistStats | null>(null);
-    const [episodeStats, setEpisodeStats] = useState<EpisodeStatistics | null>(null);
+    const [episodeStats, setEpisodeStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [refreshingStats, setRefreshingStats] = useState(false);
     const [activeFilter, setActiveFilter] = useState<string>("all");
@@ -150,7 +148,6 @@ export default function Watchlist() {
         try {
             addDebugInfo('Fetching stats from API...');
             
-            // Fetch both watchlist stats and episode stats
             const [watchlistStatsRes, episodeStatsRes] = await Promise.all([
                 getWatchlistStats(),
                 getEpisodeStatistics()
@@ -188,7 +185,6 @@ export default function Watchlist() {
 
         // Calculate TV show stats (from episodeStats if available, otherwise from local data)
         const tvShows = items.filter(item => item.type === "tv");
-        const completedTV = tvShows.filter(item => item.watchStatus === "completed");
         
         let tvWatchTime = 0;
         let totalEpisodesWatched = 0;
@@ -206,7 +202,7 @@ export default function Watchlist() {
         // Calculate planned, watching, completed counts
         const plannedItems = items.filter(item => item.watchStatus === "planned");
         const watchingItems = items.filter(item => item.watchStatus === "watching");
-        const completedCount = completedMovies.length + completedTV.length;
+        const completedCount = completedMovies.length + tvShows.filter(item => item.watchStatus === "completed").length;
 
         // Format times
         const formatTime = (minutes: number): string => {
@@ -242,7 +238,7 @@ export default function Watchlist() {
 
             tvStats: {
                 total: tvShows.length,
-                completed: completedTV.length,
+                completed: 0, // We don't track completed TV shows
                 watchTime: tvWatchTime,
                 watchTimeFormatted: formatTime(tvWatchTime)
             },
@@ -273,76 +269,66 @@ export default function Watchlist() {
         }
     };
 
-const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watching" | "completed") => {
-    debug.log('Watchlist', 'handleStatusUpdate called', { mediaId, newStatus });
-    addDebugInfo(`Updating status for ${mediaId} to ${newStatus}`);
+    const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watching" | "completed") => {
+        debug.log('Watchlist', 'handleStatusUpdate called', { mediaId, newStatus });
+        addDebugInfo(`Updating status for ${mediaId} to ${newStatus}`);
 
-    // Find the item being updated
-    const itemToUpdate = watchlist.find(item => item._id === mediaId);
-    if (!itemToUpdate) {
-        debug.error('Watchlist', 'Item not found in watchlist', { mediaId });
-        addDebugInfo(`Item ${mediaId} not found in watchlist`);
-        return;
-    }
-
-    console.log('🔄 Status update details:', {
-        title: itemToUpdate.title,
-        currentStatus: itemToUpdate.watchStatus,
-        newStatus,
-        type: itemToUpdate.type
-    });
-
-    // If it's a TV show and we're marking it as "watching", auto-expand it
-    if (itemToUpdate.type === "tv" && newStatus === "watching") {
-        addDebugInfo(`Auto-expanding TV show: ${itemToUpdate.title}`);
-        setExpandedTVShow(itemToUpdate._id);
-    }
-
-    // Optimistic update: Update local state immediately
-    const updatedWatchlist = watchlist.map(item =>
-        item._id === mediaId
-            ? { ...item, watchStatus: newStatus }
-            : item
-    );
-
-    // Update movies and TV shows lists
-    if (itemToUpdate.type === "movie") {
-        setMovies(prev => prev.map(item => 
-            item._id === mediaId ? { ...item, watchStatus: newStatus } : item
-        ));
-    } else {
-        setTVShows(prev => prev.map(item => 
-            item._id === mediaId ? { ...item, watchStatus: newStatus } : item
-        ));
-    }
-
-    // Update local stats immediately
-    setWatchlist(updatedWatchlist);
-
-    try {
-        // Call the API to update status
-        const response = await updateWatchStatus(mediaId, { watchStatus: newStatus });
-        console.log('✅ API Response:', response);
-        addDebugInfo(`API: Status updated to ${newStatus} for "${itemToUpdate.title}"`);
-
-        // Refresh stats to ensure consistency
-        await forceRefreshStats();
-
-        // If it's a TV show marked as "watching", also fetch episodes
-        if (itemToUpdate.type === "tv" && newStatus === "watching") {
-            addDebugInfo(`Fetching episodes for TV show: ${itemToUpdate.title}`);
-            // The episodes will be fetched automatically when the component expands
+        // Find the item being updated
+        const itemToUpdate = watchlist.find(item => item._id === mediaId);
+        if (!itemToUpdate) {
+            debug.error('Watchlist', 'Item not found in watchlist', { mediaId });
+            addDebugInfo(`Item ${mediaId} not found in watchlist`);
+            return;
         }
 
-    } catch (error: any) {
-        debug.error('Watchlist', 'Status update failed', error);
-        console.error('❌ API Error:', error.response?.data || error.message);
-        addDebugInfo(`Update failed: ${error.response?.data?.message || error.message}`);
+        console.log('🔄 Status update details:', {
+            title: itemToUpdate.title,
+            currentStatus: itemToUpdate.watchStatus,
+            newStatus,
+            type: itemToUpdate.type
+        });
 
-        // Revert on error
-        await fetchWatchlist();
+        // If it's a TV show and we're marking it as "watching", auto-expand it
+        if (itemToUpdate.type === "tv" && newStatus === "watching") {
+            addDebugInfo(`Auto-expanding TV show: ${itemToUpdate.title}`);
+            setExpandedTVShow(itemToUpdate._id);
+        }
+
+        // Update local state immediately (optimistic update)
+        if (itemToUpdate.type === "movie") {
+            setMovies(prev => prev.map(item => 
+                item._id === mediaId ? { ...item, watchStatus: newStatus } : item
+            ));
+        } else {
+            setTVShows(prev => prev.map(item => 
+                item._id === mediaId ? { ...item, watchStatus: newStatus } : item
+            ));
+        }
+
+        setWatchlist(prev => prev.map(item =>
+            item._id === mediaId
+                ? { ...item, watchStatus: newStatus }
+                : item
+        ));
+
+        try {
+            // Call the API to update status
+            const response = await updateWatchStatus(mediaId, { watchStatus: newStatus });
+            console.log('✅ API Response:', response);
+            addDebugInfo(`API: Status updated to ${newStatus} for "${itemToUpdate.title}"`);
+
+            // Refresh stats to ensure consistency
+            await forceRefreshStats();
+
+        } catch (error: any) {
+            debug.error('Watchlist', 'Status update failed', error);
+            console.error('❌ API Error:', error.response?.data || error.message);
+            addDebugInfo(`Update failed: ${error.response?.data?.message || error.message}`);
+
+            // Revert on error
+            await fetchWatchlist();
+        }
     }
-}
 
     const handleRemove = async (mediaId: string) => {
         debug.log('Watchlist', 'handleRemove called', { mediaId });
@@ -359,13 +345,6 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
     const handleEpisodeStatusChange = async () => {
         // When episodes change, refresh the stats
         await forceRefreshStats();
-    };
-
-    const formatTime = (minutes: number): string => {
-        if (!minutes) return "0h 0m";
-        const hours = Math.floor(minutes / 60);
-        const mins = minutes % 60;
-        return `${hours}h ${mins}m`;
     };
 
     const getFilteredMovies = () => {
@@ -434,7 +413,7 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                     <div>
                         <h1 className="text-4xl font-bold mb-2">🎯 My Watchlist</h1>
                         <p className="text-slate-400">
-                            Track your movies and TV shows across different statuses
+                            Track your movies and TV shows
                         </p>
                         {lastUpdated && (
                             <p className="text-xs text-slate-500 mt-1">
@@ -465,42 +444,13 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                     </div>
                 </div>
 
-                {/* Debug Panel */}
-                <div className="mb-6 p-4 bg-slate-800 rounded-xl border border-slate-700">
-                    <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-sm font-bold text-rose-400">Debug Console</h3>
-                        <button
-                            onClick={() => setDebugInfo([])}
-                            className="text-xs text-slate-400 hover:text-slate-300"
-                        >
-                            Clear
-                        </button>
-                    </div>
-                    <div className="h-32 overflow-y-auto bg-slate-900 rounded p-2 font-mono text-xs">
-                        {debugInfo.length === 0 ? (
-                            <p className="text-slate-500">No debug messages yet...</p>
-                        ) : (
-                            debugInfo.map((msg, idx) => (
-                                <div key={idx} className="text-slate-300 mb-1">{msg}</div>
-                            ))
-                        )}
-                    </div>
-                    <div className="mt-2 text-xs text-slate-500">
-                        Movies: {movies.length} | TV Shows: {tvShows.length} |
-                        Episodes: {episodeStats?.summary?.totalWatched || 0} watched |
-                        Filter: {activeFilter} | Active Tab: {contentType}
-                    </div>
-                </div>
-
-                {/* Enhanced Stats Overview */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+                {/* Stats Overview - SIMPLIFIED */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     {/* Movie Stats */}
                     <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
                         <div className="flex items-center justify-between mb-3">
                             <div className="text-3xl">🎬</div>
-                            <span className={`text-sm font-bold ${
-                                (stats?.movieStats?.completed || 0) > 0 ? "text-green-400" : "text-slate-400"
-                            }`}>
+                            <span className={`text-sm font-bold ${(stats?.movieStats?.completed || 0) > 0 ? "text-green-400" : "text-slate-400"}`}>
                                 {(stats?.movieStats?.completed || 0)}/{(stats?.movieStats?.total || 0)}
                             </span>
                         </div>
@@ -508,37 +458,30 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                         <p className="text-2xl font-bold">{stats?.movieStats?.total || 0}</p>
                         <div className="mt-2 pt-2 border-t border-slate-700">
                             <p className="text-xs text-slate-500">Completed Time</p>
-                            <p className="text-sm font-medium text-slate-300">{stats?.movieStats?.watchTimeFormatted || "0h 0m"}</p>
+                            <p className="text-sm font-medium text-slate-300">
+                                {stats?.movieStats?.watchTimeFormatted || "0h 0m"}
+                            </p>
                         </div>
                     </div>
 
-                    {/* TV Show Stats - Enhanced */}
+                    {/* TV Shows */}
                     <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="text-3xl">📺</div>
-                            <span className={`text-sm font-bold ${
-                                (episodeStats?.summary?.totalWatched || 0) > 0 ? "text-green-400" : "text-slate-400"
-                            }`}>
-                                {(episodeStats?.summary?.totalWatched || 0)}/{(episodeStats?.summary?.totalEpisodes || 0)}
-                            </span>
-                        </div>
-                        <p className="text-slate-400 text-sm mb-1">TV Shows</p>
+                        <div className="text-3xl mb-3">📺</div>
+                        <p className="text-slate-400 text-sm">TV Shows</p>
                         <p className="text-2xl font-bold">{stats?.tvStats?.total || 0}</p>
                         <div className="mt-2 pt-2 border-t border-slate-700">
-                            <p className="text-xs text-slate-500">
-                                Episodes: {episodeStats?.summary?.totalWatched || 0} watched
-                            </p>
+                            <p className="text-xs text-slate-500">Episodes Watched</p>
                             <p className="text-sm font-medium text-slate-300">
-                                {stats?.tvStats?.watchTimeFormatted || "0h 0m"}
+                                {episodeStats?.summary?.totalWatched || 0} episodes
                             </p>
                         </div>
                     </div>
 
-                    {/* Episode Completion */}
+                    {/* Episodes Watched */}
                     <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
                         <div className="text-3xl mb-3">📊</div>
-                        <p className="text-slate-400 text-sm">Episode Completion</p>
-                        <p className="text-2xl font-bold">{episodeStats?.summary?.completionPercentage || 0}%</p>
+                        <p className="text-slate-400 text-sm">Episodes Watched</p>
+                        <p className="text-2xl font-bold">{episodeStats?.summary?.totalWatched || 0}</p>
                         <div className="mt-2 pt-2 border-t border-slate-700">
                             <p className="text-xs text-slate-500">
                                 {episodeStats?.summary?.watchedEpisodes || 0} watched • {episodeStats?.summary?.skippedEpisodes || 0} skipped
@@ -546,7 +489,7 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                         </div>
                     </div>
 
-                    {/* Total Completed Time */}
+                    {/* Total Watch Time */}
                     <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
                         <div className="text-3xl mb-3">⏱️</div>
                         <p className="text-slate-400 text-sm">Total Watch Time</p>
@@ -560,74 +503,26 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                             </p>
                         </div>
                     </div>
-
-                    {/* Planned vs Completed */}
-                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="text-3xl">✅</div>
-                            <span className="text-sm font-bold text-slate-400">
-                                {(stats?.completedCount || 0)}/{(stats?.totalItems || 0)}
-                            </span>
-                        </div>
-                        <p className="text-slate-400 text-sm">Completed</p>
-                        <p className="text-2xl font-bold">{stats?.completedCount || 0}</p>
-                        <div className="mt-2 pt-2 border-t border-slate-700">
-                            <p className="text-xs text-slate-500">
-                                Planned: {stats?.plannedCount || 0} • Watching: {stats?.watchingCount || 0}
-                            </p>
-                        </div>
-                    </div>
                 </div>
 
-                {/* TV Show Detailed Stats */}
-                {episodeStats && episodeStats.byTVShow && episodeStats.byTVShow.length > 0 && (
-                    <div className="mb-8 bg-slate-800 rounded-2xl border border-slate-700 p-6">
-                        <h3 className="text-xl font-bold mb-4 text-slate-50">📺 TV Show Progress</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {episodeStats.byTVShow.map((show, index) => (
-                                <div key={index} className="bg-slate-900/50 p-4 rounded-xl">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <h4 className="font-medium text-slate-50 truncate">{show.title}</h4>
-                                        <span className="text-sm text-rose-400">
-                                            {show.completionPercentage}%
-                                        </span>
-                                    </div>
-                                    <div className="h-2 bg-slate-700 rounded-full overflow-hidden mb-2">
-                                        <div 
-                                            className="h-full bg-green-500 rounded-full"
-                                            style={{ width: `${show.completionPercentage || 0}%` }}
-                                        ></div>
-                                    </div>
-                                    <div className="flex justify-between text-xs text-slate-400">
-                                        <span>{show.totalWatched || 0}/{show.totalEpisodes || 0} episodes</span>
-                                        <span>{formatTime(show.watchTime || 0)}</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                                {/* Content Type Tabs */}
+                {/* Content Type Tabs */}
                 <div className="mb-6">
                     <div className="flex space-x-1 border-b border-slate-700">
                         <button
                             onClick={() => setContentType("movies")}
-                            className={`px-4 py-3 font-medium transition ${
-                                contentType === "movies"
+                            className={`px-4 py-3 font-medium transition ${contentType === "movies"
                                     ? "text-rose-400 border-b-2 border-rose-400"
                                     : "text-slate-400 hover:text-slate-300"
-                            }`}
+                                }`}
                         >
                             🎬 Movies ({getFilteredMovies().length})
                         </button>
                         <button
                             onClick={() => setContentType("tv")}
-                            className={`px-4 py-3 font-medium transition ${
-                                contentType === "tv"
+                            className={`px-4 py-3 font-medium transition ${contentType === "tv"
                                     ? "text-rose-400 border-b-2 border-rose-400"
                                     : "text-slate-400 hover:text-slate-300"
-                            }`}
+                                }`}
                         >
                             📺 TV Shows ({getFilteredTVShows().length})
                         </button>
@@ -639,41 +534,37 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                     <div className="flex space-x-1 border-b border-slate-700">
                         <button
                             onClick={() => setActiveFilter("all")}
-                            className={`px-4 py-3 font-medium text-sm transition ${
-                                activeFilter === "all"
+                            className={`px-4 py-3 font-medium text-sm transition ${activeFilter === "all"
                                     ? "text-rose-400 border-b-2 border-rose-400"
                                     : "text-slate-400 hover:text-slate-300"
-                            }`}
+                                }`}
                         >
                             All ({stats?.totalItems || 0})
                         </button>
                         <button
                             onClick={() => setActiveFilter("planned")}
-                            className={`px-4 py-3 font-medium text-sm transition ${
-                                activeFilter === "planned"
+                            className={`px-4 py-3 font-medium text-sm transition ${activeFilter === "planned"
                                     ? "text-rose-400 border-b-2 border-rose-400"
                                     : "text-slate-400 hover:text-slate-300"
-                            }`}
+                                }`}
                         >
                             Planned ({stats?.plannedCount || 0})
                         </button>
                         <button
                             onClick={() => setActiveFilter("watching")}
-                            className={`px-4 py-3 font-medium text-sm transition ${
-                                activeFilter === "watching"
+                            className={`px-4 py-3 font-medium text-sm transition ${activeFilter === "watching"
                                     ? "text-rose-400 border-b-2 border-rose-400"
                                     : "text-slate-400 hover:text-slate-300"
-                            }`}
+                                }`}
                         >
                             Watching ({stats?.watchingCount || 0})
                         </button>
                         <button
                             onClick={() => setActiveFilter("completed")}
-                            className={`px-4 py-3 font-medium text-sm transition ${
-                                activeFilter === "completed"
+                            className={`px-4 py-3 font-medium text-sm transition ${activeFilter === "completed"
                                     ? "text-rose-400 border-b-2 border-rose-400"
                                     : "text-slate-400 hover:text-slate-300"
-                            }`}
+                                }`}
                         >
                             Completed ({stats?.completedCount || 0})
                         </button>
@@ -722,13 +613,13 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                                 <span className="text-6xl">🎬</span>
                             </div>
                             <h3 className="text-2xl font-bold mb-2">
-                                {activeFilter === "all" 
-                                    ? "No movies in your watchlist" 
+                                {activeFilter === "all"
+                                    ? "No movies in your watchlist"
                                     : `No ${activeFilter} movies`
                                 }
                             </h3>
                             <p className="text-slate-400 mb-6 max-w-md mx-auto">
-                                {activeFilter === "all" 
+                                {activeFilter === "all"
                                     ? "Start building your watchlist by searching for movies you want to watch"
                                     : `Try adding some movies to your ${activeFilter} list`
                                 }
@@ -769,7 +660,7 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                                             </div>
                                             
                                             {/* TV Show Info */}
-                                            <div className="flex-1">
+                                            <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-start mb-4">
                                                     <div>
                                                         <h3 className="text-2xl font-bold text-slate-50 mb-2">{item.title}</h3>
@@ -783,11 +674,10 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                                                             <span className="text-sm text-slate-400">
                                                                 🎬 {item.episodeCount || 1} episode{item.episodeCount !== 1 ? 's' : ''}
                                                             </span>
-                                                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                                                item.watchStatus === "completed" ? "bg-green-600 text-green-100" :
-                                                                item.watchStatus === "watching" ? "bg-blue-600 text-blue-100" :
-                                                                "bg-slate-600 text-slate-300"
-                                                            }`}>
+                                                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${item.watchStatus === "completed" ? "bg-green-600 text-green-100" :
+                                                                    item.watchStatus === "watching" ? "bg-blue-600 text-blue-100" :
+                                                                        "bg-slate-600 text-slate-300"
+                                                                }`}>
                                                                 {item.watchStatus}
                                                             </span>
                                                         </div>
@@ -826,10 +716,10 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                                                         </span>
                                                     </div>
                                                     <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                                                        <div 
+                                                        <div
                                                             className="h-full bg-green-500 rounded-full"
-                                                            style={{ 
-                                                                width: `${item.episodeCount ? ((item.totalEpisodesWatched || 0) / item.episodeCount) * 100 : 0}%` 
+                                                            style={{
+                                                                width: `${item.episodeCount ? ((item.totalEpisodesWatched || 0) / item.episodeCount) * 100 : 0}%`
                                                             }}
                                                         ></div>
                                                     </div>
@@ -838,36 +728,12 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                                                 {/* Episode Tracker (Expanded) */}
                                                 {isExpanded && (
                                                     <div className="mt-4">
-                                                        <TVEpisodeTracker 
-                                                            tvShow={tvShow} 
+                                                        <TVEpisodeTracker
+                                                            tvShow={tvShow}
                                                             onEpisodeStatusChange={handleEpisodeStatusChange}
                                                         />
                                                     </div>
                                                 )}
-                                                
-                                                {/* Quick Actions */}
-                                                <div className="flex space-x-3 mt-4 pt-4 border-t border-slate-700">
-                                                    <button
-                                                        onClick={() => handleStatusUpdate(item._id, "watching")}
-                                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                                                            item.watchStatus === "watching"
-                                                                ? "bg-blue-600 text-blue-100"
-                                                                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                                                        }`}
-                                                    >
-                                                        👀 Start Watching
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleStatusUpdate(item._id, "completed")}
-                                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                                                            item.watchStatus === "completed"
-                                                                ? "bg-green-600 text-green-100"
-                                                                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                                                        }`}
-                                                    >
-                                                        ✅ Mark Complete
-                                                    </button>
-                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -880,13 +746,13 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                                 <span className="text-6xl">📺</span>
                             </div>
                             <h3 className="text-2xl font-bold mb-2">
-                                {activeFilter === "all" 
-                                    ? "No TV shows in your watchlist" 
+                                {activeFilter === "all"
+                                    ? "No TV shows in your watchlist"
                                     : `No ${activeFilter} TV shows`
                                 }
                             </h3>
                             <p className="text-slate-400 mb-6 max-w-md mx-auto">
-                                {activeFilter === "all" 
+                                {activeFilter === "all"
                                     ? "Add TV shows to track episodes and seasons individually"
                                     : `Try adding some TV shows to your ${activeFilter} list`
                                 }
@@ -901,27 +767,25 @@ const handleStatusUpdate = async (mediaId: string, newStatus: "planned" | "watch
                     )
                 )}
 
-                {/* Test Controls */}
+                {/* Debug Panel */}
                 <div className="mt-8 p-6 bg-slate-800/50 rounded-2xl border border-slate-700">
-                    <h3 className="text-lg font-bold mb-4 text-rose-400">Debug Controls</h3>
-                    <div className="flex flex-wrap gap-4">
+                    <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-sm font-bold text-rose-400">Debug Console</h3>
                         <button
-                            onClick={forceRefreshStats}
-                            className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-4 py-2 rounded-lg text-sm"
+                            onClick={() => setDebugInfo([])}
+                            className="text-xs text-slate-400 hover:text-slate-300"
                         >
-                            Force Refresh All Data
+                            Clear
                         </button>
-                        <button
-                            onClick={() => {
-                                console.log('Current stats:', stats);
-                                console.log('Episode stats:', episodeStats);
-                                console.log('TV shows:', tvShows);
-                                addDebugInfo('Logged current state to console');
-                            }}
-                            className="bg-blue-700 hover:bg-blue-600 text-blue-100 px-4 py-2 rounded-lg text-sm"
-                        >
-                            Log Current State
-                        </button>
+                    </div>
+                    <div className="h-32 overflow-y-auto bg-slate-900 rounded p-2 font-mono text-xs">
+                        {debugInfo.length === 0 ? (
+                            <p className="text-slate-500">No debug messages yet...</p>
+                        ) : (
+                            debugInfo.map((msg, idx) => (
+                                <div key={idx} className="text-slate-300 mb-1">{msg}</div>
+                            ))
+                        )}
                     </div>
                 </div>
             </div>
