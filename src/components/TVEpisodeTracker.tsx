@@ -95,47 +95,56 @@ export default function TVEpisodeTracker({ tvShow, onEpisodeStatusChange }: TVEp
   };
 
   const handleEpisodeStatusUpdate = async (episodeId: string, newStatus: "unwatched" | "watched" | "skipped") => {
-    try {
-      const response = await api.put(`/media/episodes/${episodeId}/status`, {
-        watchStatus: newStatus
+  try {
+    console.log(`🔄 Updating episode ${episodeId} to ${newStatus}`);
+    
+    // Get episode details before update
+    const episodeBefore = episodes.find(ep => ep._id === episodeId);
+    console.log(`📊 Episode runtime: ${episodeBefore?.runtime || 45} minutes`);
+    
+    const response = await api.put(`/media/episodes/${episodeId}/status`, {
+      watchStatus: newStatus
+    });
+    
+    if (response.status === 200) {
+      console.log(`✅ Episode status updated to ${newStatus}`);
+      
+      // Update local state
+      setEpisodes(prevEpisodes =>
+        prevEpisodes.map(ep =>
+          ep._id === episodeId
+            ? { ...ep, 
+                watchStatus: newStatus, 
+                watchedAt: newStatus === "watched" ? new Date().toISOString() : undefined 
+              }
+            : ep
+        )
+      );
+      
+      // Update progress
+      const updatedEpisodes = episodes.map(ep =>
+        ep._id === episodeId ? { ...ep, watchStatus: newStatus } : ep
+      );
+      const watchedEpisodes = updatedEpisodes.filter(ep => ep.watchStatus === "watched").length;
+      setProgress({
+        watched: watchedEpisodes,
+        total: updatedEpisodes.length,
+        percentage: updatedEpisodes.length > 0 ? (watchedEpisodes / updatedEpisodes.length) * 100 : 0
       });
       
-      if (response.status === 200) {
-        // Update local state
-        setEpisodes(prevEpisodes =>
-          prevEpisodes.map(ep =>
-            ep._id === episodeId
-              ? { ...ep, 
-                  watchStatus: newStatus, 
-                  watchedAt: newStatus === "watched" ? new Date().toISOString() : undefined 
-                }
-              : ep
-          )
-        );
-        
-        // Update progress
-        const updatedEpisodes = episodes.map(ep =>
-          ep._id === episodeId ? { ...ep, watchStatus: newStatus } : ep
-        );
-        const watchedEpisodes = updatedEpisodes.filter(ep => ep.watchStatus === "watched").length;
-        setProgress({
-          watched: watchedEpisodes,
-          total: updatedEpisodes.length,
-          percentage: updatedEpisodes.length > 0 ? (watchedEpisodes / updatedEpisodes.length) * 100 : 0
-        });
-        
-        // Call the callback to refresh stats
-        if (onEpisodeStatusChange) {
-          const result = onEpisodeStatusChange();
-          if (result && typeof result.then === 'function') {
-            await result;
-          }
+      // Call the callback to refresh stats
+      if (onEpisodeStatusChange) {
+        console.log(`🔄 Triggering stats refresh for episode watch time update`);
+        const result = onEpisodeStatusChange();
+        if (result && typeof result.then === 'function') {
+          await result;
         }
       }
-    } catch (error) {
-      console.error("Failed to update episode status:", error);
     }
-  };
+  } catch (error) {
+    console.error("Failed to update episode status:", error);
+  }
+};
 
   const markSeasonAsWatched = async () => {
     try {
