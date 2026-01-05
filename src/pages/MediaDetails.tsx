@@ -75,7 +75,7 @@ interface WatchlistItem {
 }
 
 export default function MediaDetails() {
-    const { type, id } = useParams<{ type: string; id: string }>(); // Make type string, not "movie" | "tv"
+    const { type, id } = useParams<{ type: string; id: string }>();
     const navigate = useNavigate();
     const { user } = useAuth();
 
@@ -113,13 +113,9 @@ export default function MediaDetails() {
     const fetchMediaDetails = async () => {
         try {
             setLoading(true);
-            console.log(`Fetching ${mediaType} details for ID: ${id}`);
-
             const response = await getMediaDetails(parseInt(id!), mediaType);
-            console.log("Media details response:", response);
-
+            
             if (response.data) {
-                // Ensure the type is set correctly in the media object
                 const mediaData = {
                     ...response.data,
                     type: mediaType
@@ -129,7 +125,6 @@ export default function MediaDetails() {
                 throw new Error("No data received");
             }
         } catch (err: any) {
-            console.error("Error fetching media details:", err);
             setError(err.response?.data?.message || err.message || "Failed to fetch media details");
         } finally {
             setLoading(false);
@@ -165,13 +160,21 @@ export default function MediaDetails() {
 
         setIsAdding(true);
         try {
+            // Get the correct date based on media type
+            const releaseDate = mediaType === "movie" 
+                ? media.release_date 
+                : media.first_air_date || media.release_date || "";
+            
+            // Get the correct poster path
+            const posterPath = media.poster_path || "";
+            
             if (mediaType === "movie") {
                 const response = await addToWatchlist({
                     tmdbId: media.id,
                     title: media.title,
                     type: "movie",
-                    posterPath: media.poster_path,
-                    releaseDate: media.release_date,
+                    posterPath: posterPath,
+                    releaseDate: releaseDate,
                 });
 
                 setInWatchlist(true);
@@ -179,14 +182,12 @@ export default function MediaDetails() {
                 setWatchStatus("planned");
             } else {
                 // For TV shows, use a different endpoint
-                // We'll need to add this to our media.service
-                // For now, let's use the same endpoint
                 const response = await addToWatchlist({
                     tmdbId: media.id,
                     title: media.title,
                     type: "tv",
-                    posterPath: media.poster_path,
-                    releaseDate: media.release_date || media.first_air_date || "",
+                    posterPath: posterPath,
+                    releaseDate: releaseDate,
                 });
 
                 setInWatchlist(true);
@@ -194,7 +195,14 @@ export default function MediaDetails() {
                 setWatchStatus("planned");
             }
         } catch (err: any) {
-            alert(err.response?.data?.message || "Failed to add to watchlist");
+            // Check if it's the specific error we're looking for
+            if (err.response?.data?.message?.includes("already in your watchlist")) {
+                // If already in watchlist, find it and update state
+                await checkWatchlist();
+                alert("This item is already in your watchlist!");
+            } else {
+                alert(err.response?.data?.message || "Failed to add to watchlist");
+            }
         } finally {
             setIsAdding(false);
         }
