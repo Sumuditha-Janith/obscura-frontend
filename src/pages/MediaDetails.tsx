@@ -432,30 +432,49 @@ export default function MediaDetails() {
                       </span>
                                         </div>
 
-                                        {/* Status Selector */}
+                                        {/* Status Selector - Different for movies and TV shows */}
                                         <div>
                                             <p className="text-sm text-slate-400 mb-2">Update Status:</p>
                                             <div className="flex space-x-2">
-                                                {(["planned", "watching", "completed"] as const).map((status) => (
-                                                    <button
-                                                        key={status}
-                                                        onClick={() => handleStatusChange(status)}
-                                                        disabled={isAdding || watchStatus === status}
-                                                        className={`px-4 py-2 rounded-lg font-medium transition ${
-                                                            watchStatus === status
-                                                                ? status === "planned"
-                                                                    ? "bg-slate-600 text-slate-300"
-                                                                    : status === "watching"
-                                                                        ? "bg-blue-600 text-blue-100"
+                                                {mediaType === "movie" ? (
+                                                    (["planned", "completed"] as const).map((status) => (
+                                                        <button
+                                                            key={status}
+                                                            onClick={() => handleStatusChange(status)}
+                                                            disabled={isAdding || watchStatus === status}
+                                                            className={`px-4 py-2 rounded-lg font-medium transition ${watchStatus === status
+                                                                    ? status === "planned"
+                                                                        ? "bg-slate-600 text-slate-300"
                                                                         : "bg-green-600 text-green-100"
-                                                                : "bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300"
-                                                        }`}
-                                                    >
-                                                        {status === "planned" && "📋 Planned"}
-                                                        {status === "watching" && "👀 Watching"}
-                                                        {status === "completed" && "✅ Completed"}
-                                                    </button>
-                                                ))}
+                                                                    : "bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300"
+                                                                }`}
+                                                        >
+                                                            {status === "planned" && "📋 Planned"}
+                                                            {status === "completed" && "✅ Completed"}
+                                                        </button>
+                                                    ))
+                                                ) : (
+                                                    // TV Shows: All three statuses
+                                                    (["planned", "watching", "completed"] as const).map((status) => (
+                                                        <button
+                                                            key={status}
+                                                            onClick={() => handleStatusChange(status)}
+                                                            disabled={isAdding || watchStatus === status}
+                                                            className={`px-4 py-2 rounded-lg font-medium transition ${watchStatus === status
+                                                                    ? status === "planned"
+                                                                        ? "bg-slate-600 text-slate-300"
+                                                                        : status === "watching"
+                                                                            ? "bg-blue-600 text-blue-100"
+                                                                            : "bg-green-600 text-green-100"
+                                                                    : "bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300"
+                                                                }`}
+                                                        >
+                                                            {status === "planned" && "📋 Planned"}
+                                                            {status === "watching" && "👀 Watching"}
+                                                            {status === "completed" && "✅ Completed"}
+                                                        </button>
+                                                    ))
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -542,10 +561,9 @@ export default function MediaDetails() {
                     <div className="flex space-x-1 border-b border-slate-700">
                         <button
                             onClick={() => setActiveTab("overview")}
-                            className={`px-6 py-3 font-medium transition ${
-                                activeTab === "overview"
-                                    ? "text-rose-400 border-b-2 border-rose-400"
-                                    : "text-slate-400 hover:text-slate-300"
+                            className={`px-6 py-3 font-medium transition ${activeTab === "overview"
+                                ? "text-rose-400 border-b-2 border-rose-400"
+                                : "text-slate-400 hover:text-slate-300"
                             }`}
                         >
                             Overview
@@ -553,10 +571,9 @@ export default function MediaDetails() {
                         {media.credits?.cast && media.credits.cast.length > 0 && (
                             <button
                                 onClick={() => setActiveTab("cast")}
-                                className={`px-6 py-3 font-medium transition ${
-                                    activeTab === "cast"
-                                        ? "text-rose-400 border-b-2 border-rose-400"
-                                        : "text-slate-400 hover:text-slate-300"
+                                className={`px-6 py-3 font-medium transition ${activeTab === "cast"
+                                    ? "text-rose-400 border-b-2 border-rose-400"
+                                    : "text-slate-400 hover:text-slate-300"
                                 }`}
                             >
                                 Cast & Crew
@@ -565,10 +582,9 @@ export default function MediaDetails() {
                         {media.similar?.results && media.similar.results.length > 0 && (
                             <button
                                 onClick={() => setActiveTab("similar")}
-                                className={`px-6 py-3 font-medium transition ${
-                                    activeTab === "similar"
-                                        ? "text-rose-400 border-b-2 border-rose-400"
-                                        : "text-slate-400 hover:text-slate-300"
+                                className={`px-6 py-3 font-medium transition ${activeTab === "similar"
+                                    ? "text-rose-400 border-b-2 border-rose-400"
+                                    : "text-slate-400 hover:text-slate-300"
                                 }`}
                             >
                                 Similar

@@ -1,4 +1,3 @@
-// src/pages/Movies.tsx - Fixed Version
 import { useState, useEffect } from "react";
 import { getTrending, getPopularMovies, searchMedia } from "../services/media.service";
 import MovieCard from "../components/MovieCard";

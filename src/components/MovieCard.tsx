@@ -257,33 +257,40 @@ export default function MovieCard({
                                         {loading ? "Removing..." : "Remove from Watchlist"}
                                     </button>
 
-                                    {/* Status Selector - Only for movies, TV shows have episode tracking */}
-                                    {mediaType === "movie" && (
-                                        <div className="grid grid-cols-3 gap-1">
-                                            {(["planned", "watching", "completed"] as const).map((status) => (
+                                    {/* Status Selector - Different for movies and TV shows */}
+                                    <div className={`grid gap-1 ${mediaType === "movie" ? "grid-cols-2" : "grid-cols-3"}`}>
+                                        {mediaType === "movie" ? (
+                                            // Movies: Only Planned and Completed
+                                            (["planned", "completed"] as const).map((status) => (
                                                 <button
                                                     key={status}
                                                     onClick={() => handleStatusChange(status)}
                                                     disabled={loading || currentStatus === status}
-                                                    className={`py-1 px-2 rounded text-xs font-medium transition ${
-                                                        currentStatus === status
+                                                    className={`py-1 px-2 rounded text-xs font-medium transition ${currentStatus === status
                                                             ? getStatusColor(status)
                                                             : "bg-slate-900/70 text-slate-400 hover:bg-slate-800"
-                                                    }`}
+                                                        }`}
                                                 >
                                                     {getStatusIcon(status)} {status.charAt(0).toUpperCase() + status.slice(1)}
                                                 </button>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {mediaType === "tv" && (
-                                        <div className="text-center py-1">
-                                            <span className="text-xs text-slate-400">
-                                                Track episodes in watchlist
-                                            </span>
-                                        </div>
-                                    )}
+                                            ))
+                                        ) : (
+                                            // TV Shows: All three statuses
+                                            (["planned", "watching", "completed"] as const).map((status) => (
+                                                <button
+                                                    key={status}
+                                                    onClick={() => handleStatusChange(status)}
+                                                    disabled={loading || currentStatus === status}
+                                                    className={`py-1 px-2 rounded text-xs font-medium transition ${currentStatus === status
+                                                            ? getStatusColor(status)
+                                                            : "bg-slate-900/70 text-slate-400 hover:bg-slate-800"
+                                                        }`}
+                                                >
+                                                    {getStatusIcon(status)} {status.charAt(0).toUpperCase() + status.slice(1)}
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
                                 </div>
                             )}
 
@@ -324,17 +331,10 @@ export default function MovieCard({
                     </span>
 
                     {/* Watch Status Badge */}
-                    {inWatchlist && mediaType === "movie" && (
+                    {inWatchlist && (
                         <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(currentStatus)}`}>
                             <span className="mr-1">{getStatusIcon(currentStatus)}</span>
                             {currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
-                        </div>
-                    )}
-
-                    {inWatchlist && mediaType === "tv" && (
-                        <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-600 text-blue-100">
-                            <span className="mr-1">📺</span>
-                            TV Show
                         </div>
                     )}
                 </div>
