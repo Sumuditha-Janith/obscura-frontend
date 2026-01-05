@@ -17,7 +17,7 @@ interface MediaItem {
   genre_ids?: number[];
 }
 
-export default function Movies() {
+export default function Home() {
   const [trending, setTrending] = useState<MediaItem[]>([]);
   const [popular, setPopular] = useState<MediaItem[]>([]);
   const [searchResults, setSearchResults] = useState<MediaItem[]>([]);

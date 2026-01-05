@@ -31,7 +31,7 @@ export default function Login() {
       setUser(userDetails.data);
 
       setMessage("Login successful! Redirecting...");
-      setTimeout(() => navigate("/dashboard"), 1500);
+      setTimeout(() => navigate("/home"), 1500);
     } catch (err: any) {
       setMessage(err.response?.data?.message || "Login failed");
     } finally {
@@ -69,7 +69,7 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-slate-50"
-              placeholder="john@example.com"
+              placeholder="name@example.com"
             />
           </div>
 
@@ -80,7 +80,7 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-slate-50"
-              placeholder="••••••••"
+              placeholder="••••••••••••••••"
             />
           </div>
 

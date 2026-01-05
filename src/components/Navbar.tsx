@@ -60,7 +60,7 @@ export default function Navbar() {
           <div className="flex items-center">
             {/* Logo */}
             <Link 
-              to={user ? "/dashboard" : "/"} 
+              to={user ? "/home" : "/"} 
               className="flex items-center space-x-3"
               onClick={closeMobileMenu}
             >
@@ -80,10 +80,10 @@ export default function Navbar() {
               <div className="hidden md:block ml-10">
                 <div className="flex items-baseline space-x-4">
                   <Link
-                    to="/dashboard"
+                    to="/home"
                     className="text-slate-300 hover:text-slate-50 hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition"
                   >
-                    Dashboard
+                    Home
                   </Link>
                   <Link
                     to="/movies"
@@ -198,13 +198,13 @@ export default function Navbar() {
                     {/* Menu Items */}
                     <div className="py-2">
                       <Link
-                        to="/dashboard"
+                        to="/home"
                         className="flex items-center px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-50 transition"
                         onClick={() => setDropdownOpen(false)}
                       >
                         <span className="mr-3 text-lg">📊</span>
                         <div>
-                          <div className="font-medium">Dashboard</div>
+                          <div className="font-medium">Home</div>
                           <div className="text-xs text-slate-500">Your movie stats</div>
                         </div>
                       </Link>
@@ -306,12 +306,12 @@ export default function Navbar() {
 
                 {/* Mobile Navigation Links */}
                 <Link
-                  to="/dashboard"
+                  to="/home"
                   className="text-slate-300 hover:text-slate-50 hover:bg-slate-700 block px-3 py-3 rounded-md text-base font-medium"
                   onClick={closeMobileMenu}
                 >
                   <span className="mr-3">📊</span>
-                  Dashboard
+                  Home
                 </Link>
                 <Link
                   to="/movies"

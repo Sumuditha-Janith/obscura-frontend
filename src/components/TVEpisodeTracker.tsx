@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "../services/api";
 import { useAuth } from "../context/authContext";
-import TMDBService from "../services/tmdb.service";
 
 interface TVEpisode {
   _id: string;

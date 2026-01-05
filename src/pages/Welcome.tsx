@@ -50,13 +50,13 @@ export default function Welcome() {
             to="/login"
             className="px-10 py-4 bg-rose-600 hover:bg-rose-700 text-slate-50 font-bold rounded-2xl text-lg transition duration-300 transform hover:scale-105"
           >
-            Login to Dashboard
+            Login
           </Link>
           <Link
             to="/register"
             className="px-10 py-4 bg-slate-800 hover:bg-slate-700 text-slate-50 font-bold rounded-2xl text-lg transition duration-300 transform hover:scale-105 border border-slate-700"
           >
-            Create Free Account
+            Create Account
           </Link>
         </div>
 

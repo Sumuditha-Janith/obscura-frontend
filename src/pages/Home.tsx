@@ -1,7 +1,7 @@
 import { useAuth } from "../context/authContext";
 import Navbar from "../components/Navbar";
 
-export default function Dashboard() {
+export default function Home() {
   const { user } = useAuth();
 
   return (
