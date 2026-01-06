@@ -220,9 +220,9 @@ export default function TVShows() {
                 </div>
 
                 {/* Search Bar */}
-                <div className="mb-8">
+                {/* <div className="mb-8">
                     <SearchBar />
-                </div>
+                </div> */}
 
                 {/* Tab Navigation */}
                 <div className="mb-8">
