@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+// cinetime-frontend/components/Home.tsx 
+import { useState, useEffect, useCallback } from "react";
 import { getTrending, getPopularMovies, searchMedia } from "../services/media.service";
 import MovieCard from "../components/MovieCard";
 import SearchBar from "../components/SearchBar";
 import Navbar from "../components/Navbar";
+import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 
 interface MediaItem {
     id: number;
@@ -24,23 +26,31 @@ export default function Home() {
     const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [loading, setLoading] = useState({
-        trending: true,
-        popular: true,
+        trending: false,
+        popular: false,
         search: false,
     });
     const [activeTab, setActiveTab] = useState<"trending" | "popular" | "search">("trending");
+    
+    // Pagination states
+    const [trendingPage, setTrendingPage] = useState(1);
+    const [popularPage, setPopularPage] = useState(1);
+    const [searchPage, setSearchPage] = useState(1);
+    const [hasMoreTrending, setHasMoreTrending] = useState(true);
+    const [hasMorePopular, setHasMorePopular] = useState(true);
+    const [hasMoreSearch, setHasMoreSearch] = useState(true);
 
     useEffect(() => {
-        fetchTrending();
-        fetchPopular();
+        fetchTrending(1);
+        fetchPopular(1);
     }, []);
 
-    const fetchTrending = async () => {
+    const fetchTrending = async (page: number = 1, append: boolean = false) => {
         try {
-            const response = await getTrending(1, "week");
+            setLoading(prev => ({ ...prev, trending: true }));
+            const response = await getTrending(page, "week");
             console.log("Trending response:", response);
 
-            // Transform the data to ensure it has both type and media_type
             const formattedData = response.data.map((item: any) => ({
                 id: item.id,
                 title: item.title || item.name || "Unknown",
@@ -55,7 +65,14 @@ export default function Home() {
                 genre_ids: item.genre_ids || []
             }));
 
-            setTrending(formattedData);
+            if (append) {
+                setTrending(prev => [...prev, ...formattedData]);
+            } else {
+                setTrending(formattedData);
+            }
+            
+            setHasMoreTrending(page < (response.pagination?.total_pages || 1));
+            setTrendingPage(page);
         } catch (error) {
             console.error("Failed to fetch trending:", error);
         } finally {
@@ -63,12 +80,12 @@ export default function Home() {
         }
     };
 
-    const fetchPopular = async () => {
+    const fetchPopular = async (page: number = 1, append: boolean = false) => {
         try {
-            const response = await getPopularMovies(1);
+            setLoading(prev => ({ ...prev, popular: true }));
+            const response = await getPopularMovies(page);
             console.log("Popular response:", response);
 
-            // Transform the data to ensure it has both type and media_type
             const formattedData = response.data.map((item: any) => ({
                 id: item.id,
                 title: item.title || item.name || "Unknown",
@@ -78,12 +95,19 @@ export default function Home() {
                 release_date: item.release_date || item.first_air_date || "",
                 vote_average: item.vote_average || 0,
                 vote_count: item.vote_count || 0,
-                type: "movie", // Popular movies endpoint only returns movies
+                type: "movie",
                 media_type: "movie",
                 genre_ids: item.genre_ids || []
             }));
 
-            setPopular(formattedData);
+            if (append) {
+                setPopular(prev => [...prev, ...formattedData]);
+            } else {
+                setPopular(formattedData);
+            }
+            
+            setHasMorePopular(page < (response.pagination?.total_pages || 1));
+            setPopularPage(page);
         } catch (error) {
             console.error("Failed to fetch popular:", error);
         } finally {
@@ -97,6 +121,8 @@ export default function Home() {
         if (!query.trim()) {
             setSearchResults([]);
             setActiveTab("trending");
+            setSearchPage(1);
+            setHasMoreSearch(true);
             return;
         }
 
@@ -107,7 +133,6 @@ export default function Home() {
             const response = await searchMedia(query, 1);
             console.log("Search response:", response);
 
-            // Transform the data to ensure it has both type and media_type
             const formattedData = response.data.map((item: any) => ({
                 id: item.id,
                 title: item.title || "Unknown",
@@ -123,6 +148,8 @@ export default function Home() {
             }));
 
             setSearchResults(formattedData);
+            setHasMoreSearch(1 < (response.pagination?.total_pages || 1)); // FIXED: Changed 'page' to 1
+            setSearchPage(1);
         } catch (error) {
             console.error("Search error:", error);
             setSearchResults([]);
@@ -130,6 +157,85 @@ export default function Home() {
             setLoading(prev => ({ ...prev, search: false }));
         }
     };
+
+    // Infinite scroll handlers
+    const loadMoreTrending = useCallback(async () => {
+        if (!hasMoreTrending || loading.trending) return;
+        await fetchTrending(trendingPage + 1, true);
+    }, [hasMoreTrending, loading.trending, trendingPage]);
+
+    const loadMorePopular = useCallback(async () => {
+        if (!hasMorePopular || loading.popular) return;
+        await fetchPopular(popularPage + 1, true);
+    }, [hasMorePopular, loading.popular, popularPage]);
+
+    const loadMoreSearch = useCallback(async () => {
+        if (!hasMoreSearch || loading.search || !searchQuery.trim()) return;
+        
+        setLoading(prev => ({ ...prev, search: true }));
+        try {
+            const response = await searchMedia(searchQuery, searchPage + 1);
+            
+            const formattedData = response.data.map((item: any) => ({
+                id: item.id,
+                title: item.title || "Unknown",
+                overview: item.overview || "",
+                poster_path: item.poster_path || "",
+                backdrop_path: item.backdrop_path,
+                release_date: item.release_date || "",
+                vote_average: item.vote_average || 0,
+                vote_count: item.vote_count || 0,
+                type: item.type || (item.title ? "movie" : "tv"),
+                media_type: item.media_type || item.type || (item.title ? "movie" : "tv"),
+                genre_ids: item.genre_ids || []
+            }));
+
+            setSearchResults(prev => [...prev, ...formattedData]);
+            setHasMoreSearch(searchPage + 1 < (response.pagination?.total_pages || 1));
+            setSearchPage(prev => prev + 1);
+        } catch (error) {
+            console.error("Search error:", error);
+        } finally {
+            setLoading(prev => ({ ...prev, search: false }));
+        }
+    }, [hasMoreSearch, loading.search, searchQuery, searchPage]);
+
+    // Get active load more function
+    const getLoadMoreFunction = useCallback(() => {
+        switch (activeTab) {
+            case "trending": return loadMoreTrending;
+            case "popular": return loadMorePopular;
+            case "search": return loadMoreSearch;
+            default: return async () => {};
+        }
+    }, [activeTab, loadMoreTrending, loadMorePopular, loadMoreSearch]);
+
+    // Get active hasMore state
+    const getHasMore = useCallback(() => {
+        switch (activeTab) {
+            case "trending": return hasMoreTrending;
+            case "popular": return hasMorePopular;
+            case "search": return hasMoreSearch;
+            default: return false;
+        }
+    }, [activeTab, hasMoreTrending, hasMorePopular, hasMoreSearch]);
+
+    // Get active loading state
+    const getIsLoading = useCallback(() => {
+        switch (activeTab) {
+            case "trending": return loading.trending;
+            case "popular": return loading.popular;
+            case "search": return loading.search;
+            default: return false;
+        }
+    }, [activeTab, loading.trending, loading.popular, loading.search]);
+
+    // Setup infinite scroll
+    const { sentinelRef, isFetching } = useInfiniteScroll(
+        getLoadMoreFunction(),
+        getHasMore(),
+        getIsLoading()
+    );
 
     const getActiveContent = () => {
         switch (activeTab) {
@@ -183,7 +289,7 @@ export default function Home() {
                             className={`px-4 py-3 font-medium text-sm transition ${activeTab === "trending"
                                 ? "text-rose-400 border-b-2 border-rose-400"
                                 : "text-slate-400 hover:text-slate-300"
-                            }`}
+                                }`}
                         >
                             🔥 Trending
                         </button>
@@ -192,7 +298,7 @@ export default function Home() {
                             className={`px-4 py-3 font-medium text-sm transition ${activeTab === "popular"
                                 ? "text-rose-400 border-b-2 border-rose-400"
                                 : "text-slate-400 hover:text-slate-300"
-                            }`}
+                                }`}
                         >
                             🎬 Popular
                         </button>
@@ -202,7 +308,7 @@ export default function Home() {
                                 className={`px-4 py-3 font-medium text-sm transition ${activeTab === "search"
                                     ? "text-rose-400 border-b-2 border-rose-400"
                                     : "text-slate-400 hover:text-slate-300"
-                                }`}
+                                    }`}
                             >
                                 🔍 Search
                             </button>
@@ -215,11 +321,6 @@ export default function Home() {
                     <p className="text-sm text-slate-400">
                         Active Tab: {activeTab} | Trending: {trending.length} | Popular: {popular.length} | Search: {searchResults.length}
                     </p>
-                    {trending.length > 0 && (
-                        <div className="mt-2 text-xs text-slate-500">
-                            Sample trending item: {trending[0]?.title} (Type: {trending[0]?.type}, Media Type: {trending[0]?.media_type})
-                        </div>
-                    )}
                 </div>
 
                 {/* Content Section */}
@@ -228,14 +329,14 @@ export default function Home() {
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-2xl font-bold">{getActiveTitle()}</h2>
                         <span className="text-sm text-slate-400">
-              {getActiveContent().length} titles
-            </span>
+                            {getActiveContent().length} titles
+                        </span>
                     </div>
 
                     {/* Loading State */}
                     {(loading.trending && activeTab === "trending") ||
-                    (loading.popular && activeTab === "popular") ||
-                    (loading.search && activeTab === "search") ? (
+                        (loading.popular && activeTab === "popular") ||
+                        (loading.search && activeTab === "search") ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                             {Array.from({ length: 8 }).map((_, index) => (
                                 <div key={index} className="bg-slate-800 rounded-2xl p-4 animate-pulse">
@@ -249,36 +350,53 @@ export default function Home() {
                         <>
                             {/* Movie Grid */}
                             {getActiveContent().length > 0 ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                                    {getActiveContent().slice(0, 20).map((media) => {
-                                        console.log("Rendering media:", {
-                                            id: media.id,
-                                            title: media.title,
-                                            type: media.type,
-                                            media_type: media.media_type
-                                        });
+                                <>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                        {getActiveContent().map((media, index) => {
+                                            return (
+                                                <MovieCard
+                                                    key={`${media.id}-${media.type}-${index}`}
+                                                    media={{
+                                                        id: media.id,
+                                                        title: media.title,
+                                                        overview: media.overview || "",
+                                                        poster_path: media.poster_path || "",
+                                                        backdrop_path: media.backdrop_path,
+                                                        release_date: media.release_date || "",
+                                                        vote_average: media.vote_average || 0,
+                                                        vote_count: media.vote_count || 0,
+                                                        type: media.type,
+                                                        media_type: media.media_type,
+                                                        genre_ids: media.genre_ids || []
+                                                    }}
+                                                    showActions={true}
+                                                />
+                                            );
+                                        })}
+                                    </div>
 
-                                        return (
-                                            <MovieCard
-                                                key={`${media.id}-${media.type}`}
-                                                media={{
-                                                    id: media.id,
-                                                    title: media.title,
-                                                    overview: media.overview || "",
-                                                    poster_path: media.poster_path || "",
-                                                    backdrop_path: media.backdrop_path,
-                                                    release_date: media.release_date || "",
-                                                    vote_average: media.vote_average || 0,
-                                                    vote_count: media.vote_count || 0,
-                                                    type: media.type,
-                                                    media_type: media.media_type, // This should now work
-                                                    genre_ids: media.genre_ids || []
-                                                }}
-                                                showActions={true}
-                                            />
-                                        );
-                                    })}
-                                </div>
+                                    {/* Sentinel for infinite scroll */}
+                                    <div ref={sentinelRef} className="h-20 flex items-center justify-center">
+                                        {(isFetching || (activeTab === "trending" && loading.trending) ||
+                                            (activeTab === "popular" && loading.popular) ||
+                                            (activeTab === "search" && loading.search)) && (
+                                                <div className="flex flex-col items-center space-y-4">
+                                                    <div className="w-10 h-10 border-4 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
+                                                    <p className="text-slate-400 text-sm">Loading more...</p>
+                                                </div>
+                                            )}
+                                    </div>
+
+                                    {/* No more content message */}
+                                    {!getHasMore() && getActiveContent().length > 0 && (
+                                        <div className="text-center py-8">
+                                            <p className="text-slate-400">No more content to load</p>
+                                            <p className="text-sm text-slate-500 mt-1">
+                                                You've reached the end of {getActiveTitle().toLowerCase()}
+                                            </p>
+                                        </div>
+                                    )}
+                                </>
                             ) : (
                                 /* Empty State */
                                 <div className="text-center py-12">
@@ -289,15 +407,6 @@ export default function Home() {
                                             ? "Try a different search term"
                                             : "Unable to load content at the moment"}
                                     </p>
-                                </div>
-                            )}
-
-                            {/* View More Button */}
-                            {getActiveContent().length > 0 && (
-                                <div className="text-center mt-8">
-                                    <button className="bg-slate-800 hover:bg-slate-700 text-slate-50 font-medium py-3 px-6 rounded-lg transition duration-200 border border-slate-700">
-                                        Load More
-                                    </button>
                                 </div>
                             )}
                         </>

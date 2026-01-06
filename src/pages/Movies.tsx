@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+// cinetime-frontend/components/Movies.tsx 
+import { useState, useEffect, useCallback } from "react";
 import { getTrending, getPopularMovies, searchMedia } from "../services/media.service";
 import MovieCard from "../components/MovieCard";
 import SearchBar from "../components/SearchBar";
 import Navbar from "../components/Navbar";
+import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 
 interface TMDBMediaItem {
     id: number;
@@ -38,16 +40,19 @@ export default function Movies() {
     const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [loading, setLoading] = useState({
-        trending: true,
-        popular: true,
+        trending: false,
+        popular: false,
         search: false,
     });
     const [activeTab, setActiveTab] = useState<"trending" | "popular" | "search">("trending");
-
-    useEffect(() => {
-        fetchTrendingMovies();
-        fetchPopularMovies();
-    }, []);
+    
+    // Pagination states
+    const [trendingPage, setTrendingPage] = useState(1);
+    const [popularPage, setPopularPage] = useState(1);
+    const [searchPage, setSearchPage] = useState(1);
+    const [hasMoreTrending, setHasMoreTrending] = useState(true);
+    const [hasMorePopular, setHasMorePopular] = useState(true);
+    const [hasMoreSearch, setHasMoreSearch] = useState(true);
 
     // Helper function to format TMDB data
     const formatMediaItem = (item: TMDBMediaItem): MediaItem => {
@@ -67,21 +72,23 @@ export default function Movies() {
         };
     };
 
-    // Fetch trending movies (filtered for movies only)
-    const fetchTrendingMovies = async () => {
+    // Fetch trending movies with pagination
+    const fetchTrendingMovies = async (page: number = 1, append: boolean = false) => {
         try {
-            const response = await getTrending(1, "week");
-            console.log("Trending API response:", response); // Debug log
-
-            // Format data first
+            setLoading(prev => ({ ...prev, trending: true }));
+            const response = await getTrending(page, "week");
+            
             const formattedItems = response.data.map(formatMediaItem);
-            console.log("Formatted trending items:", formattedItems); // Debug log
-
-            // Filter only movies
             const moviesOnly = formattedItems.filter((item: MediaItem) => item.type === "movie");
-            console.log("Movies only:", moviesOnly); // Debug log
 
-            setTrending(moviesOnly);
+            if (append) {
+                setTrending(prev => [...prev, ...moviesOnly]);
+            } else {
+                setTrending(moviesOnly);
+            }
+            
+            setHasMoreTrending(page < (response.pagination?.total_pages || 1));
+            setTrendingPage(page);
         } catch (error) {
             console.error("Failed to fetch trending movies:", error);
         } finally {
@@ -89,15 +96,22 @@ export default function Movies() {
         }
     };
 
-    // Fetch popular movies (already movies only from API)
-    const fetchPopularMovies = async () => {
+    // Fetch popular movies with pagination
+    const fetchPopularMovies = async (page: number = 1, append: boolean = false) => {
         try {
-            const response = await getPopularMovies(1);
-            console.log("Popular API response:", response); // Debug log
-
-            // Format data
+            setLoading(prev => ({ ...prev, popular: true }));
+            const response = await getPopularMovies(page);
+            
             const formattedItems = response.data.map((item: TMDBMediaItem) => formatMediaItem(item));
-            setPopular(formattedItems);
+
+            if (append) {
+                setPopular(prev => [...prev, ...formattedItems]);
+            } else {
+                setPopular(formattedItems);
+            }
+            
+            setHasMorePopular(page < (response.pagination?.total_pages || 1));
+            setPopularPage(page);
         } catch (error) {
             console.error("Failed to fetch popular movies:", error);
         } finally {
@@ -105,12 +119,19 @@ export default function Movies() {
         }
     };
 
+    useEffect(() => {
+        fetchTrendingMovies(1);
+        fetchPopularMovies(1);
+    }, []);
+
     const handleSearch = async (query: string) => {
         setSearchQuery(query);
 
         if (!query.trim()) {
             setSearchResults([]);
             setActiveTab("trending");
+            setSearchPage(1);
+            setHasMoreSearch(true);
             return;
         }
 
@@ -119,13 +140,12 @@ export default function Movies() {
 
         try {
             const response = await searchMedia(query, 1);
-            console.log("Search API response:", response); // Debug log
-
-            // Format and filter only movies from search results
             const formattedItems = response.data.map(formatMediaItem);
             const moviesOnly = formattedItems.filter((item: MediaItem) => item.type === "movie");
 
             setSearchResults(moviesOnly);
+            setHasMoreSearch(1 < (response.pagination?.total_pages || 1));
+            setSearchPage(1);
         } catch (error) {
             console.error("Search error:", error);
             setSearchResults([]);
@@ -133,6 +153,73 @@ export default function Movies() {
             setLoading(prev => ({ ...prev, search: false }));
         }
     };
+
+    // Infinite scroll handlers
+    const loadMoreTrending = useCallback(async () => {
+        if (!hasMoreTrending || loading.trending) return;
+        await fetchTrendingMovies(trendingPage + 1, true);
+    }, [hasMoreTrending, loading.trending, trendingPage]);
+
+    const loadMorePopular = useCallback(async () => {
+        if (!hasMorePopular || loading.popular) return;
+        await fetchPopularMovies(popularPage + 1, true);
+    }, [hasMorePopular, loading.popular, popularPage]);
+
+    const loadMoreSearch = useCallback(async () => {
+        if (!hasMoreSearch || loading.search || !searchQuery.trim()) return;
+        
+        setLoading(prev => ({ ...prev, search: true }));
+        try {
+            const response = await searchMedia(searchQuery, searchPage + 1);
+            const formattedItems = response.data.map(formatMediaItem);
+            const moviesOnly = formattedItems.filter((item: MediaItem) => item.type === "movie");
+
+            setSearchResults(prev => [...prev, ...moviesOnly]);
+            setHasMoreSearch(searchPage + 1 < (response.pagination?.total_pages || 1));
+            setSearchPage(prev => prev + 1);
+        } catch (error) {
+            console.error("Search error:", error);
+        } finally {
+            setLoading(prev => ({ ...prev, search: false }));
+        }
+    }, [hasMoreSearch, loading.search, searchQuery, searchPage]);
+
+    // Get active load more function
+    const getLoadMoreFunction = () => {
+        switch (activeTab) {
+            case "trending": return loadMoreTrending;
+            case "popular": return loadMorePopular;
+            case "search": return loadMoreSearch;
+            default: return async () => {};
+        }
+    };
+
+    // Get active hasMore state
+    const getHasMore = () => {
+        switch (activeTab) {
+            case "trending": return hasMoreTrending;
+            case "popular": return hasMorePopular;
+            case "search": return hasMoreSearch;
+            default: return false;
+        }
+    };
+
+    // Get active loading state
+    const getIsLoading = () => {
+        switch (activeTab) {
+            case "trending": return loading.trending;
+            case "popular": return loading.popular;
+            case "search": return loading.search;
+            default: return false;
+        }
+    };
+
+    // Setup infinite scroll
+    const { sentinelRef, isFetching } = useInfiniteScroll(
+        getLoadMoreFunction(),
+        getHasMore(),
+        getIsLoading()
+    );
 
     const getActiveContent = () => {
         switch (activeTab) {
@@ -173,7 +260,7 @@ export default function Movies() {
                     </p>
                 </div>
 
-                {/* Search Bar - You can keep the existing SearchBar component */}
+                {/* Search Bar */}
                 <div className="mb-8">
                     <SearchBar />
                 </div>
@@ -216,21 +303,14 @@ export default function Movies() {
                     </div>
                 </div>
 
-                {/* Debug Info */}
-                <div className="mb-4 p-4 bg-slate-800/50 rounded-lg">
-                    <p className="text-sm text-slate-400">
-                        Active Tab: {activeTab} | Trending: {trending.length} | Popular: {popular.length} | Search: {searchResults.length}
-                    </p>
-                </div>
-
                 {/* Content Section */}
                 <div>
                     {/* Section Header */}
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-2xl font-bold">{getActiveTitle()}</h2>
                         <span className="text-sm text-slate-400">
-              Showing {getActiveContent().length} movies
-            </span>
+                            Showing {getActiveContent().length} movies
+                        </span>
                     </div>
 
                     {/* Loading State */}
@@ -250,19 +330,43 @@ export default function Movies() {
                         <>
                             {/* Movie Grid */}
                             {getActiveContent().length > 0 ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                                    {getActiveContent().slice(0, 20).map((media) => (
-                                        <MovieCard
-                                            key={`${media.id}-${media.type}`}
-                                            media={{
-                                                ...media,
-                                                backdrop_path: media.backdrop_path || "",
-                                                vote_count: media.vote_count || 0,
-                                            }}
-                                            showActions={true}
-                                        />
-                                    ))}
-                                </div>
+                                <>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                        {getActiveContent().map((media) => (
+                                            <MovieCard
+                                                key={`${media.id}-${media.type}-${Math.random()}`}
+                                                media={{
+                                                    ...media,
+                                                    backdrop_path: media.backdrop_path || "",
+                                                    vote_count: media.vote_count || 0,
+                                                }}
+                                                showActions={true}
+                                            />
+                                        ))}
+                                    </div>
+
+                                    {/* Sentinel for infinite scroll */}
+                                    <div ref={sentinelRef} className="h-20 flex items-center justify-center">
+                                        {(isFetching || (activeTab === "trending" && loading.trending) ||
+                                            (activeTab === "popular" && loading.popular) ||
+                                            (activeTab === "search" && loading.search)) && (
+                                                <div className="flex flex-col items-center space-y-4">
+                                                    <div className="w-10 h-10 border-4 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
+                                                    <p className="text-slate-400 text-sm">Loading more movies...</p>
+                                                </div>
+                                            )}
+                                    </div>
+
+                                    {/* No more content message */}
+                                    {!getHasMore() && getActiveContent().length > 0 && (
+                                        <div className="text-center py-8">
+                                            <p className="text-slate-400">No more movies to load</p>
+                                            <p className="text-sm text-slate-500 mt-1">
+                                                You've reached the end of {getActiveTitle().toLowerCase()}
+                                            </p>
+                                        </div>
+                                    )}
+                                </>
                             ) : (
                                 /* Empty State */
                                 <div className="text-center py-12">
@@ -273,21 +377,6 @@ export default function Movies() {
                                             ? "Try a different search term"
                                             : "Unable to load movies at the moment. Please check your TMDB API configuration."}
                                     </p>
-                                    <div className="mt-4 text-sm text-slate-500">
-                                        <p>If you see 0 results, check:</p>
-                                        <p>1. TMDB API key in .env file</p>
-                                        <p>2. Network console for errors</p>
-                                        <p>3. API response format</p>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* View More Button */}
-                            {getActiveContent().length > 0 && (
-                                <div className="text-center mt-8">
-                                    <button className="bg-slate-800 hover:bg-slate-700 text-slate-50 font-medium py-3 px-6 rounded-lg transition duration-200 border border-slate-700">
-                                        Load More Movies
-                                    </button>
                                 </div>
                             )}
                         </>
