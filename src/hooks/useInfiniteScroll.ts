@@ -4,7 +4,7 @@ export const useInfiniteScroll = (
   loadMore: () => Promise<void>,
   hasMore: boolean,
   isLoading: boolean,
-  threshold = 500
+  threshold = 100
 ) => {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);

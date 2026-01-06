@@ -337,15 +337,6 @@ const handleAddToWatchlist = async () => {
                         </div>
                     )}
                 </div>
-
-                {/* Media Type Indicator */}
-                {!inWatchlist && (
-                    <div className="mt-2 pt-2 border-t border-slate-700 text-center">
-                        <span className="text-xs text-slate-500">
-                            {mediaType === "movie" ? "🎬 Movie • Add to track" : "📺 TV Show • Add to track episodes"}
-                        </span>
-                    </div>
-                )}
             </div>
         </div>
     );
