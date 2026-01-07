@@ -1,8 +1,6 @@
-// cinetime-frontend/components/Movies.tsx 
 import { useState, useEffect, useCallback } from "react";
 import { getTrending, getPopularMovies, searchMedia } from "../services/media.service";
 import MovieCard from "../components/MovieCard";
-import SearchBar from "../components/SearchBar";
 import Navbar from "../components/Navbar";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 
@@ -38,7 +36,7 @@ export default function Movies() {
     const [trending, setTrending] = useState<MediaItem[]>([]);
     const [popular, setPopular] = useState<MediaItem[]>([]);
     const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery] = useState("");
     const [loading, setLoading] = useState({
         trending: false,
         popular: false,
@@ -123,36 +121,6 @@ export default function Movies() {
         fetchTrendingMovies(1);
         fetchPopularMovies(1);
     }, []);
-
-    const handleSearch = async (query: string) => {
-        setSearchQuery(query);
-
-        if (!query.trim()) {
-            setSearchResults([]);
-            setActiveTab("trending");
-            setSearchPage(1);
-            setHasMoreSearch(true);
-            return;
-        }
-
-        setLoading(prev => ({ ...prev, search: true }));
-        setActiveTab("search");
-
-        try {
-            const response = await searchMedia(query, 1);
-            const formattedItems = response.data.map(formatMediaItem);
-            const moviesOnly = formattedItems.filter((item: MediaItem) => item.type === "movie");
-
-            setSearchResults(moviesOnly);
-            setHasMoreSearch(1 < (response.pagination?.total_pages || 1));
-            setSearchPage(1);
-        } catch (error) {
-            console.error("Search error:", error);
-            setSearchResults([]);
-        } finally {
-            setLoading(prev => ({ ...prev, search: false }));
-        }
-    };
 
     // Infinite scroll handlers
     const loadMoreTrending = useCallback(async () => {

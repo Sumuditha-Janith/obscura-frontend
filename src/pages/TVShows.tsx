@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getTrending, searchMedia } from "../services/media.service";
 import MovieCard from "../components/MovieCard";
-import SearchBar from "../components/SearchBar";
 import Navbar from "../components/Navbar";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 
@@ -36,7 +35,7 @@ interface MediaItem {
 export default function TVShows() {
     const [trending, setTrending] = useState<MediaItem[]>([]);
     const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery] = useState("");
     const [loading, setLoading] = useState({
         trending: false,
         search: false,
@@ -95,35 +94,35 @@ export default function TVShows() {
         fetchTrendingTVShows(1);
     }, []);
 
-    const handleSearch = async (query: string) => {
-        setSearchQuery(query);
+    // const handleSearch = async (query: string) => {
+    //     setSearchQuery(query);
 
-        if (!query.trim()) {
-            setSearchResults([]);
-            setActiveTab("trending");
-            setSearchPage(1);
-            setHasMoreSearch(true);
-            return;
-        }
+    //     if (!query.trim()) {
+    //         setSearchResults([]);
+    //         setActiveTab("trending");
+    //         setSearchPage(1);
+    //         setHasMoreSearch(true);
+    //         return;
+    //     }
 
-        setLoading(prev => ({ ...prev, search: true }));
-        setActiveTab("search");
+    //     setLoading(prev => ({ ...prev, search: true }));
+    //     setActiveTab("search");
 
-        try {
-            const response = await searchMedia(query, 1);
-            const formattedItems = response.data.map(formatMediaItem);
-            const tvOnly = formattedItems.filter((item: MediaItem) => item.type === "tv");
+    //     try {
+    //         const response = await searchMedia(query, 1);
+    //         const formattedItems = response.data.map(formatMediaItem);
+    //         const tvOnly = formattedItems.filter((item: MediaItem) => item.type === "tv");
 
-            setSearchResults(tvOnly);
-            setHasMoreSearch(1 < (response.pagination?.total_pages || 1));
-            setSearchPage(1);
-        } catch (error) {
-            console.error("TV Shows - Search error:", error);
-            setSearchResults([]);
-        } finally {
-            setLoading(prev => ({ ...prev, search: false }));
-        }
-    };
+    //         setSearchResults(tvOnly);
+    //         setHasMoreSearch(1 < (response.pagination?.total_pages || 1));
+    //         setSearchPage(1);
+    //     } catch (error) {
+    //         console.error("TV Shows - Search error:", error);
+    //         setSearchResults([]);
+    //     } finally {
+    //         setLoading(prev => ({ ...prev, search: false }));
+    //     }
+    // };
 
     // Infinite scroll handlers
     const loadMoreTrending = useCallback(async () => {
