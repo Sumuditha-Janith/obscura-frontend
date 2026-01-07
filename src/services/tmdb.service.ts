@@ -27,13 +27,7 @@ export interface SearchResponse {
 }
 
 class TMDBService {
-    private axiosInstance = axios.create({
-        baseURL: TMDB_BASE_URL,
-        params: {
-            api_key: TMDB_API_KEY,
-            language: "en-US",
-        },
-    });
+    // Removed unused axiosInstance
 
     // Get image URL
     getImageUrl(path: string, size: string = "w500"): string {
