@@ -179,40 +179,32 @@ export default function Navbar() {
                             </button>
                         </div>
 
-                        {/* Desktop User Menu */}
+                        {/* Desktop User Menu - Minimalistic */}
                         <div className="hidden md:flex items-center space-x-4">
                             {user ? (
                                 <div className="relative" ref={dropdownRef}>
-                                    {/* User Profile Button */}
+                                    {/* Minimalistic User Icon Button */}
                                     <button
                                         onClick={() => setDropdownOpen(!dropdownOpen)}
-                                        className="flex items-center space-x-3 bg-slate-700 hover:bg-slate-600 text-slate-50 px-4 py-2 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                                        className="flex items-center justify-center w-10 h-10 bg-slate-700 hover:bg-slate-600 text-slate-50 rounded-full transition duration-200 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 focus:ring-offset-slate-900"
+                                        aria-label="User menu"
                                     >
-                                        {/* User Avatar */}
-                                        {/* <div className="w-8 h-8 bg-rose-600 rounded-full flex items-center justify-center">
-                                            <span className="text-sm font-bold">{getUserInitial()}</span>
-                                        </div> */}
-
-                                        {/* User Info - Desktop only */}
-                                        <div className="flex flex-col items-start">
-                                            <span className="text-sm font-medium truncate max-w-[120px]">
-                                                {user.firstname} {user.lastname}
-                                            </span>
-                                            <span className="text-xs text-slate-400">
-                                                {user.roles?.map((role: string) => formatRole(role)).join(", ")}
-                                            </span>
+                                        {/* User Avatar Icon */}
+                                        <div className="w-8 h-8 flex items-center justify-center">
+                                            <svg
+                                                className="w-5 h-5"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                                />
+                                            </svg>
                                         </div>
-
-                                        {/* Dropdown Arrow */}
-                                        <svg
-                                            className={`w-4 h-4 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                            xmlns="http://www.w3.org/2000/svg"
-                                        >
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                        </svg>
                                     </button>
 
                                     {/* Dropdown Menu */}
@@ -220,64 +212,92 @@ export default function Navbar() {
                                         <div className="absolute right-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
                                             {/* User Info Section */}
                                             <div className="px-4 py-3 border-b border-slate-700 bg-slate-900/50">
-                                                <p className="text-xs text-slate-400 font-medium">Signed in as</p>
-                                                <p className="text-sm font-medium text-slate-50 truncate">{user.email}</p>
-                                                <div className="flex items-center mt-1">
-                                                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                                                        user.approved === "APPROVED"
-                                                            ? "bg-green-900/30 text-green-300"
-                                                            : "bg-yellow-900/30 text-yellow-300"
-                                                    }`}>
-                                                        {user.approved === "APPROVED" ? "✓ Verified" : "⏳ Pending"}
-                                                    </span>
+                                                <div className="flex items-center space-x-3">
+                                                    <div className="w-10 h-10 bg-rose-600 rounded-full flex items-center justify-center">
+                                                        <span className="text-sm font-bold">{getUserInitial()}</span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-medium text-slate-50 truncate max-w-[180px]">
+                                                            {user.firstname} {user.lastname}
+                                                        </p>
+                                                        <p className="text-xs text-slate-400 truncate max-w-[180px]">
+                                                            {user.email}
+                                                        </p>
+                                                        <div className="flex items-center mt-1">
+                                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                                        user.approved === "APPROVED"
+                                            ? "bg-green-900/30 text-green-300"
+                                            : "bg-yellow-900/30 text-yellow-300"
+                                    }`}>
+                                        {user.approved === "APPROVED" ? "✓ Verified" : "⏳ Pending"}
+                                    </span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            {/* Menu Items */}
+                                            {/* Menu Items - Icon-based */}
                                             <div className="py-2">
                                                 <Link
                                                     to="/home"
-                                                    className="flex items-center px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-50 transition"
+                                                    className="flex items-center px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-50 transition group"
                                                     onClick={() => setDropdownOpen(false)}
                                                 >
-                                                    <span className="mr-3 text-lg">📊</span>
+                                                    <div className="w-8 h-8 flex items-center justify-center mr-3 bg-slate-900/50 group-hover:bg-slate-600/50 rounded-lg">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                                        </svg>
+                                                    </div>
                                                     <div>
                                                         <div className="font-medium">Home</div>
-                                                        <div className="text-xs text-slate-500">Your movie stats</div>
+                                                        <div className="text-xs text-slate-500">Dashboard</div>
                                                     </div>
                                                 </Link>
 
                                                 <Link
                                                     to="/profile"
-                                                    className="flex items-center px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-50 transition"
+                                                    className="flex items-center px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-50 transition group"
                                                     onClick={() => setDropdownOpen(false)}
                                                 >
-                                                    <span className="mr-3 text-lg">👤</span>
+                                                    <div className="w-8 h-8 flex items-center justify-center mr-3 bg-slate-900/50 group-hover:bg-slate-600/50 rounded-lg">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        </svg>
+                                                    </div>
                                                     <div>
                                                         <div className="font-medium">Profile Settings</div>
-                                                        <div className="text-xs text-slate-500">Manage your account</div>
+                                                        <div className="text-xs text-slate-500">Manage account</div>
                                                     </div>
                                                 </Link>
 
                                                 <Link
                                                     to="/watchlist"
-                                                    className="flex items-center px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-50 transition"
+                                                    className="flex items-center px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-50 transition group"
                                                     onClick={() => setDropdownOpen(false)}
                                                 >
-                                                    <span className="mr-3 text-lg">🎯</span>
+                                                    <div className="w-8 h-8 flex items-center justify-center mr-3 bg-slate-900/50 group-hover:bg-slate-600/50 rounded-lg">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                                        </svg>
+                                                    </div>
                                                     <div>
                                                         <div className="font-medium">My Watchlist</div>
-                                                        <div className="text-xs text-slate-500">Movies to watch</div>
+                                                        <div className="text-xs text-slate-500">Saved content</div>
                                                     </div>
                                                 </Link>
 
                                                 {(user.roles?.includes("AUTHOR") || user.roles?.includes("ADMIN")) && (
                                                     <Link
                                                         to="/create"
-                                                        className="flex items-center px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-50 transition"
+                                                        className="flex items-center px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-50 transition group"
                                                         onClick={() => setDropdownOpen(false)}
                                                     >
-                                                        <span className="mr-3 text-lg">✍️</span>
+                                                        <div className="w-8 h-8 flex items-center justify-center mr-3 bg-slate-900/50 group-hover:bg-slate-600/50 rounded-lg">
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                            </svg>
+                                                        </div>
                                                         <div>
                                                             <div className="font-medium">Create Content</div>
                                                             <div className="text-xs text-slate-500">Add movies & reviews</div>
@@ -289,12 +309,16 @@ export default function Navbar() {
 
                                                 <button
                                                     onClick={handleLogout}
-                                                    className="flex items-center w-full px-4 py-3 text-sm text-rose-400 hover:bg-slate-700 transition"
+                                                    className="flex items-center w-full px-4 py-3 text-sm text-rose-400 hover:bg-slate-700 transition group"
                                                 >
-                                                    <span className="mr-3 text-lg">🚪</span>
+                                                    <div className="w-8 h-8 flex items-center justify-center mr-3 bg-slate-900/50 group-hover:bg-slate-600/50 rounded-lg">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                                        </svg>
+                                                    </div>
                                                     <div>
                                                         <div className="font-medium">Logout</div>
-                                                        <div className="text-xs text-rose-500/70">Sign out of your account</div>
+                                                        <div className="text-xs text-rose-500/70">Sign out</div>
                                                     </div>
                                                 </button>
                                             </div>
