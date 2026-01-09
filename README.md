@@ -1,73 +1,110 @@
-# React + TypeScript + Vite
+# CineTime 🎬 — Smart Movie Tracking & Engagement Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+CineTime is a premium, full-stack MERN application designed for cinema enthusiasts to discover, track, and analyze their movie-watching habits. Featuring a high-end **"Crimson Cinema"** dark theme, the platform offers secure authentication, real-time media discovery via TMDB, and AI-powered insights.
 
-Currently, two official plugins are available:
+### 🔗 Live Links
+* **Frontend:** [cinetime-tracker.vercel.app](https://cinetime-tracker.vercel.app/)
+* **Backend API:** [cinetime-backend.vercel.app](https://cinetime-backend.vercel.app/)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## ✨ Advanced Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+* **Crimson Cinema UI:** A bespoke dark-mode interface utilizing Slate-900 and Rose-600 accents for a professional theater-like experience.
+* **OTP Email Verification:** Secure registration flow using 6-digit one-time passwords sent via **Nodemailer**.
+* **Statistical Time Tracking:** Automatically calculates total watch time based on movie runtimes fetched from TMDB.
+* **TMDB Integration:** Real-time access to a massive database of movies and TV shows including posters, ratings, and plot summaries.
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🛠 Tech Stack
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Frontend
+* **React.js (Vite):** High-performance UI library.
+* **TypeScript:** Type safety for API responses and component props.
+* **Tailwind CSS:** Custom "Crimson Cinema" design system.
+* **Lucide React:** Minimalist iconography.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Backend
+* **Node.js & Express:** Scalable RESTful API logic.
+* **MongoDB & Mongoose:** Schema-based data modeling.
+* **Nodemailer:** Automated SMTP service for OTP delivery.
+* **Google Generative AI:** Gemini 1.5 Flash integration for contextual insights.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+---
+
+## 🏗 System Architecture
+
+The system follows a **Decoupled Client-Server Architecture**:
+
+1.  **Client:** React.js SPA built with Vite for near-instant load times and HMR (Hot Module Replacement).
+2.  **Server:** Node.js/Express backend following the **Controller-Service-Model** pattern.
+3.  **Data Layer:** MongoDB Atlas for flexible, non-relational storage of user profiles and media metadata.
+4.  **Interceptors:** Axios middleware to automatically attach Bearer tokens and handle global 401/403 error states.
+
+---
+
+## 🔑 Key Modules
+
+### User Authentication & Security
+* **Secure Onboarding:** Password hashing with **Bcrypt** and email verification to prevent bot accounts.
+* **Verification Flow:** Redirects unverified users to a dedicated OTP entry page before granting full access.
+
+### Media Discovery & Tracking
+* **Smart Search:** Search thousands of titles via the TMDB API integration.
+* **Personal Watchlist:** Full CRUD operations to manage "To-Watch" and "Watched" lists.
+* **Watch-Time Dashboard:** A visual analytics section showing cumulative time spent watching media.
+
+### AI Integration
+* **Gemini Chatbot:** A natural language assistant that helps users find movies based on their mood or watch history.
+* **Contextual Insights:** Uses AI to provide deeper information about cast members and director styles.
+
+---
+## 🚀 Installation & Setup
+
+### 1. Clone the Repository
+backend:
+```bash
+git clone https://github.com/Sumuditha-Janith/cinetime-backend.git
+cd cinetime-backend
+```
+frontend:
+```bash
+git clone https://github.com/Sumuditha-Janith/cinetime-frontend.git
+cd cinetime-frontend
+```
+### 2. Backend Configuration
+
+Create a .env file inside the **backend folder** and add the following:
+```bash
+SERVER_PORT=5000
+MONGO_URI=your_mongodb_uri
+JWT_SECRET=your_secret
+JWT_REFRESH_SECRET=your_refresh_secret
+EMAIL_USER=your_gmail
+EMAIL_PASS=your_app_password
+TMDB_API_KEY=your_key
+GEMINI_API_KEY=your_gemini_key
+```
+Create a .env file inside the **frontend folder** and add the following:
+```bash
+TMDB_API_KEY=your_key
+TMDB_BASE_URL=https://api.themoviedb.org/3
+VITE_TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p
+VITE_TMDB_API_KEY=your_key
+GEMINI_API_KEY=your_gemini_key
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 3. Install & Run
+Backend:
+```bash
+cd cinetime-backend
+npm install
+npm run dev
+```
+Frontend:
+```bash
+cd cinetime-frontend
+npm install
+npm run dev
 ```
