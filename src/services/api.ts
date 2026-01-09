@@ -2,7 +2,8 @@ import axios, { AxiosError } from "axios";
 import { refreshTokens } from "./auth.service";
 
 const api = axios.create({
-    baseURL: "http://localhost:5000/api/v1" //v1
+    baseURL: "https://cinetime-backend.vercel.app/"
+    // baseURL: "http://localhost:5000/api/v1"
 });
 
 const PUBLIC_ENDPOINTS = [
