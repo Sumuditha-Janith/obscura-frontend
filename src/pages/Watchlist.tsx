@@ -12,6 +12,7 @@ import Navbar from "../components/Navbar";
 import { useAuth } from "../context/authContext";
 import TMDBService from "../services/tmdb.service";
 import ReportGenerator from "../components/ReportGenerator";
+import { confirmDialog, errorAlert, successAlert } from "../utils/swal";
 
 interface WatchlistItem {
     _id: string;
@@ -207,11 +208,19 @@ export default function Watchlist() {
         const itemToRemove = watchlist.find(item => item._id === mediaId);
         if (!itemToRemove) return;
 
+        // Use confirmDialog instead of window.confirm
         const confirmMessage = itemToRemove.type === "tv"
             ? `Are you sure you want to remove "${itemToRemove.title}" from your watchlist? This will also delete all episode tracking data for this show.`
             : `Are you sure you want to remove "${itemToRemove.title}" from your watchlist?`;
 
-        if (!window.confirm(confirmMessage)) {
+        const confirmed = await confirmDialog(
+            "Remove from Watchlist",
+            confirmMessage,
+            "Yes, Remove",
+            "Cancel"
+        );
+
+        if (!confirmed) {
             return;
         }
 
@@ -234,10 +243,17 @@ export default function Watchlist() {
             // Force refresh stats to update totals
             await forceRefreshStats();
 
-            alert(`${itemToRemove.type === "movie" ? "Movie" : "TV show"} removed successfully!`);
+            // Replace alert with SweetAlert
+            successAlert(
+                "Removed Successfully",
+                `${itemToRemove.type === "movie" ? "Movie" : "TV show"} "${itemToRemove.title}" removed from your watchlist!`
+            );
         } catch (error: any) {
             console.error("Remove error:", error);
-            alert(error.response?.data?.message || "Failed to remove from watchlist");
+            errorAlert(
+                "Failed to Remove",
+                error.response?.data?.message || "Failed to remove from watchlist"
+            );
         }
     };
 

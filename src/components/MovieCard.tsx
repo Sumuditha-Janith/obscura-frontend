@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { addToWatchlist, addTVShowToWatchlist, removeFromWatchlist, updateWatchStatus } from "../services/media.service";
 import TMDBService from "../services/tmdb.service";
 import { useAuth } from "../context/authContext";
+import { confirmDialog, errorAlert, infoAlert, successAlert, warningAlert } from "../utils/swal";
 
 interface MovieCardProps {
     media: {
@@ -69,58 +70,73 @@ export default function MovieCard({
     const truncatedOverview = TMDBService.truncateOverview(media.overview);
     const mediaType = getMediaType();
 
-const handleAddToWatchlist = async () => {
-    if (!user) {
-        alert("Please login to add to watchlist");
-        return;
-    }
-
-    setLoading(true);
-    try {
-        if (mediaType === "movie") {
-            // Add movie to watchlist
-            await addToWatchlist({
-                tmdbId: media.id,
-                title: media.title,
-                type: "movie",
-                posterPath: media.poster_path,
-                releaseDate: media.release_date,
-            });
-        } else {
-            // Add TV show to watchlist
-            await addTVShowToWatchlist({
-                tmdbId: media.id,
-                title: media.title,
-                type: "tv",
-                posterPath: media.poster_path,
-                backdrop_path: media.backdrop_path,
-                releaseDate: media.release_date,
-            });
+    const handleAddToWatchlist = async () => {
+        if (!user) {
+            warningAlert("Login Required", "Please login to add to watchlist");
+            return;
         }
 
-        setInWatchlist(true);
-        setCurrentStatus("planned");
-        if (onStatusChange) {
-            onStatusChange("planned");
-        }
-        if (onWatchlistChange) {
-            onWatchlistChange();
-        }
-        alert(`Added to ${mediaType === "movie" ? "movies" : "TV shows"} watchlist successfully!`);
-    } catch (error: any) {
-        if (error.response?.status === 400 && error.response?.data?.message?.includes("already in your watchlist")) {
-            alert("This item is already in your watchlist!");
+        setLoading(true);
+        try {
+            if (mediaType === "movie") {
+                // Add movie to watchlist
+                await addToWatchlist({
+                    tmdbId: media.id,
+                    title: media.title,
+                    type: "movie",
+                    posterPath: media.poster_path,
+                    releaseDate: media.release_date,
+                });
+            } else {
+                // Add TV show to watchlist
+                await addTVShowToWatchlist({
+                    tmdbId: media.id,
+                    title: media.title,
+                    type: "tv",
+                    posterPath: media.poster_path,
+                    backdrop_path: media.backdrop_path,
+                    releaseDate: media.release_date,
+                });
+            }
+
             setInWatchlist(true);
-        } else {
-            alert(error.response?.data?.message || `Failed to add to ${mediaType} watchlist`);
+            setCurrentStatus("planned");
+            if (onStatusChange) {
+                onStatusChange("planned");
+            }
+            if (onWatchlistChange) {
+                onWatchlistChange();
+            }
+            successAlert(
+                `Added to ${mediaType === "movie" ? "Movies" : "TV Shows"} Watchlist`,
+                `"${media.title}" has been added to your watchlist successfully!`
+            );
+        } catch (error: any) {
+            if (error.response?.status === 400 && error.response?.data?.message?.includes("already in your watchlist")) {
+                infoAlert(
+                    "Already in Watchlist",
+                    "This item is already in your watchlist!"
+                );
+                setInWatchlist(true);
+            } else {
+                alert(error.response?.data?.message || `Failed to add to ${mediaType} watchlist`);
+            }
+        } finally {
+            setLoading(false);
         }
-    } finally {
-        setLoading(false);
-    }
-};
+    };
 
     const handleRemoveFromWatchlist = async () => {
         if (!watchlistId) return;
+
+        const confirmed = await confirmDialog(
+            "Remove from Watchlist",
+            `Are you sure you want to remove "${media.title}" from your watchlist?`,
+            "Yes, Remove",
+            "Cancel"
+        );
+
+        if (!confirmed) return;
 
         setLoading(true);
         try {
@@ -132,9 +148,17 @@ const handleAddToWatchlist = async () => {
             if (onWatchlistChange) {
                 onWatchlistChange();
             }
-            alert("Removed from watchlist!");
+
+            // Replace alert with SweetAlert
+            successAlert(
+                "Removed from Watchlist",
+                `"${media.title}" has been removed from your watchlist.`
+            );
         } catch (error: any) {
-            alert(error.response?.data?.message || "Failed to remove from watchlist");
+            errorAlert(
+                "Failed to Remove",
+                error.response?.data?.message || "Failed to remove from watchlist"
+            );
         } finally {
             setLoading(false);
         }
@@ -155,8 +179,15 @@ const handleAddToWatchlist = async () => {
             if (onWatchlistChange) {
                 onWatchlistChange();
             }
+            successAlert(
+                "Status Updated",
+                `Status changed to ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`
+            );
         } catch (error: any) {
-            alert(error.response?.data?.message || "Failed to update status");
+            errorAlert(
+                "Failed to Update Status",
+                error.response?.data?.message || "Failed to update status"
+            );
         } finally {
             setLoading(false);
         }
@@ -256,9 +287,9 @@ const handleAddToWatchlist = async () => {
                                                     onClick={() => handleStatusChange(status)}
                                                     disabled={loading || currentStatus === status}
                                                     className={`py-1 px-2 rounded text-xs font-medium transition ${currentStatus === status
-                                                            ? getStatusColor(status)
-                                                            : "bg-slate-900/70 text-slate-400 hover:bg-slate-800"
-                                                        }`}
+                                                        ? getStatusColor(status)
+                                                        : "bg-slate-900/70 text-slate-400 hover:bg-slate-800"
+                                                    }`}
                                                 >
                                                     {getStatusIcon(status)} {status.charAt(0).toUpperCase() + status.slice(1)}
                                                 </button>

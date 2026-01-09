@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { generateMediaReport } from "../services/media.service";
 import { useAuth } from "../context/authContext";
+import { errorAlert, showToast, warningAlert } from "../utils/swal";
 
 interface ReportGeneratorProps {
     onClose?: () => void;
@@ -14,7 +15,7 @@ export default function ReportGenerator({ onClose }: ReportGeneratorProps) {
 
     const handleGenerateReport = async () => {
         if (!user) {
-            alert("Please login to generate a report");
+            warningAlert("Login Required", "Please login to generate a report");
             return;
         }
 
@@ -23,24 +24,30 @@ export default function ReportGenerator({ onClose }: ReportGeneratorProps) {
 
         try {
             const blob = await generateMediaReport(period);
-            
+
             // Create download link
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
-            
+
             const date = new Date().toISOString().split('T')[0];
             link.download = `Cinetime_Report_${date}_${period}.pdf`;
-            
+
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
 
+            // Show success notification
+            showToast("Report generated successfully!", "success");
+
             if (onClose) onClose();
         } catch (err: any) {
             console.error("Report generation failed:", err);
-            setError(err.response?.data?.message || "Failed to generate report. Please try again.");
+            errorAlert(
+                "Report Generation Failed",
+                err.response?.data?.message || "Failed to generate report. Please try again."
+            );
         } finally {
             setLoading(false);
         }

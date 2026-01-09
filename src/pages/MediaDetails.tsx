@@ -5,6 +5,7 @@ import { getWatchlist } from "../services/media.service";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/authContext";
 import api from "../services/api";
+import { confirmDialog, errorAlert, infoAlert, successAlert, warningAlert } from "../utils/swal";
 
 interface MediaDetails {
     id: number;
@@ -58,7 +59,6 @@ interface MediaDetails {
             vote_average: number;
         }>;
     };
-    // TV Show specific fields
     first_air_date?: string;
     number_of_seasons?: number;
     number_of_episodes?: number;
@@ -222,7 +222,7 @@ export default function MediaDetails() {
 
     const handleAddToWatchlist = async () => {
         if (!user) {
-            alert("Please login to add to watchlist");
+            warningAlert("Login Required", "Please login to add to watchlist");
             return;
         }
 
@@ -270,16 +270,27 @@ export default function MediaDetails() {
                 setWatchStatus("planned");
             }
 
-            alert(`Added to ${mediaType === "movie" ? "movies" : "TV shows"} watchlist successfully!`);
+            successAlert(
+                `Added to ${mediaType === "movie" ? "Movies" : "TV Shows"} Watchlist`,
+                `"${media.title}" has been added to your watchlist successfully!`
+            );
         } catch (err: any) {
             console.error("Error adding to watchlist:", err);
             const errorMessage = err.response?.data?.message || "Failed to add to watchlist";
             alert(errorMessage);
 
-            // If it's already in watchlist, update the local state
             if (errorMessage.includes("already in your watchlist")) {
+                infoAlert(
+                    "Already in Watchlist",
+                    "This item is already in your watchlist!"
+                );
                 setInWatchlist(true);
-                await checkWatchlist(); // Refresh to get the watchlist ID
+                await checkWatchlist();
+            } else {
+                errorAlert(
+                    `Failed to Add ${mediaType === "movie" ? "Movie" : "TV Show"}`,
+                    errorMessage
+                );
             }
         } finally {
             setIsAdding(false);
@@ -289,13 +300,30 @@ export default function MediaDetails() {
     const handleRemoveFromWatchlist = async () => {
         if (!watchlistId) return;
 
+        const confirmed = await confirmDialog(
+            "Remove from Watchlist",
+            `Are you sure you want to remove "${media?.title}" from your watchlist?`,
+            "Yes, Remove",
+            "Cancel"
+        );
+
+        if (!confirmed) return;
+
         setIsAdding(true);
         try {
             await removeFromWatchlist(watchlistId);
             setInWatchlist(false);
             setWatchlistId("");
+
+            successAlert(
+                "Removed from Watchlist",
+                `"${media?.title}" has been removed from your watchlist.`
+            );
         } catch (err: any) {
-            alert(err.response?.data?.message || "Failed to remove from watchlist");
+            errorAlert(
+                "Failed to Remove",
+                err.response?.data?.message || "Failed to remove from watchlist"
+            );
         } finally {
             setIsAdding(false);
         }
@@ -307,8 +335,17 @@ export default function MediaDetails() {
         try {
             await updateWatchStatus(watchlistId, { watchStatus: newStatus });
             setWatchStatus(newStatus);
+
+            // Show status change notification
+            successAlert(
+                "Status Updated",
+                `Status changed to ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`
+            );
         } catch (err: any) {
-            alert(err.response?.data?.message || "Failed to update status");
+            errorAlert(
+                "Failed to Update Status",
+                err.response?.data?.message || "Failed to update status"
+            );
         }
     };
 
@@ -426,15 +463,6 @@ export default function MediaDetails() {
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/80 to-transparent"></div>
                 <div className="absolute bottom-0 left-0 right-0 p-8">
                     <div className="max-w-7xl mx-auto">
-                        {/* <button
-                            onClick={() => navigate(-1)}
-                            className="mb-4 text-slate-300 hover:text-slate-50 flex items-center"
-                        >
-                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                            </svg>
-                            Back
-                        </button> */}
                     </div>
                 </div>
             </div>
