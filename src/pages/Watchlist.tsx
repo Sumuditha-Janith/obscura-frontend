@@ -90,10 +90,10 @@ export default function Watchlist() {
     // Separate filters for movies and TV shows
     const [movieFilter, setMovieFilter] = useState<"all" | "planned" | "completed">("all");
     const [tvFilter, setTvFilter] = useState<"all" | "planned" | "watching" | "completed">("all");
-    
+
     // Content type state
     const [contentType, setContentType] = useState<"movies" | "tv">("movies");
-    
+
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
     const [expandedTVShow, setExpandedTVShow] = useState<string | null>(null);
 
@@ -204,11 +204,40 @@ export default function Watchlist() {
     };
 
     const handleRemove = async (mediaId: string) => {
+        const itemToRemove = watchlist.find(item => item._id === mediaId);
+        if (!itemToRemove) return;
+
+        const confirmMessage = itemToRemove.type === "tv"
+            ? `Are you sure you want to remove "${itemToRemove.title}" from your watchlist? This will also delete all episode tracking data for this show.`
+            : `Are you sure you want to remove "${itemToRemove.title}" from your watchlist?`;
+
+        if (!window.confirm(confirmMessage)) {
+            return;
+        }
+
         try {
             await removeFromWatchlist(mediaId);
+
+            // Remove from local state immediately
+            if (itemToRemove.type === "movie") {
+                setMovies(prev => prev.filter(item => item._id !== mediaId));
+            } else {
+                setTVShows(prev => prev.filter(item => item._id !== mediaId));
+            }
+            setWatchlist(prev => prev.filter(item => item._id !== mediaId));
+
+            // Close expanded view if open
+            if (expandedTVShow === mediaId) {
+                setExpandedTVShow(null);
+            }
+
+            // Force refresh stats to update totals
             await forceRefreshStats();
-        } catch (error) {
-            // Error handling
+
+            alert(`${itemToRemove.type === "movie" ? "Movie" : "TV show"} removed successfully!`);
+        } catch (error: any) {
+            console.error("Remove error:", error);
+            alert(error.response?.data?.message || "Failed to remove from watchlist");
         }
     };
 
