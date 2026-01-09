@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { getTrending, getPopularMovies, searchMedia } from "../services/media.service";
+import { getTrending, getPopularMovies, searchMedia, getWatchlist } from "../services/media.service";
 import MovieCard from "../components/MovieCard";
 import Navbar from "../components/Navbar";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import AIChat from "../components/AIChatBot";
+import { useAuth } from "../context/authContext";
 
 interface MediaItem {
     id: number;
@@ -19,7 +20,19 @@ interface MediaItem {
     media_type?: "movie" | "tv";
 }
 
+interface WatchlistItem {
+    _id: string;
+    tmdbId: number;
+    title: string;
+    type: "movie" | "tv";
+    posterPath: string;
+    releaseDate: string;
+    watchStatus: "planned" | "watching" | "completed";
+    watchTimeMinutes: number;
+}
+
 export default function Home() {
+    const { user } = useAuth();
     const [trending, setTrending] = useState<MediaItem[]>([]);
     const [popular, setPopular] = useState<MediaItem[]>([]);
     const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
@@ -28,8 +41,10 @@ export default function Home() {
         trending: false,
         popular: false,
         search: false,
+        watchlist: false,
     });
     const [activeTab, setActiveTab] = useState<"trending" | "popular" | "search">("trending");
+    const [watchlistItems, setWatchlistItems] = useState<WatchlistItem[]>([]);
     
     // Pagination states
     const [trendingPage, setTrendingPage] = useState(1);
@@ -39,10 +54,29 @@ export default function Home() {
     const [hasMorePopular, setHasMorePopular] = useState(true);
     const [hasMoreSearch, setHasMoreSearch] = useState(true);
 
+    // Fetch watchlist
+    const fetchWatchlist = async () => {
+        if (!user) return;
+        
+        setLoading(prev => ({ ...prev, watchlist: true }));
+        try {
+            const response = await getWatchlist(1);
+            setWatchlistItems(response.data || []);
+        } catch (error) {
+            console.error("Failed to fetch watchlist:", error);
+            setWatchlistItems([]);
+        } finally {
+            setLoading(prev => ({ ...prev, watchlist: false }));
+        }
+    };
+
     useEffect(() => {
         fetchTrending(1);
         fetchPopular(1);
-    }, []);
+        if (user) {
+            fetchWatchlist();
+        }
+    }, [user]);
 
     const fetchTrending = async (page: number = 1, append: boolean = false) => {
         try {
@@ -219,6 +253,17 @@ export default function Home() {
         }
     };
 
+    const handleWatchlistChange = () => {
+        fetchWatchlist();
+    };
+
+    const findWatchlistItem = (mediaId: number, type: string) => {
+        return watchlistItems.find(item => 
+            item.tmdbId === mediaId && 
+            item.type === type
+        );
+    };
+
     return (
         <div className="min-h-screen bg-slate-900 text-slate-50">
             <Navbar />
@@ -231,11 +276,6 @@ export default function Home() {
                         Explore trending content, popular movies, and search from thousands of titles
                     </p>
                 </div>
-
-                {/* Search Bar */}
-                {/* <div className="mb-8">
-                    <SearchBar />
-                </div> */}
 
                 {/* Tab Navigation */}
                 <div className="mb-8">
@@ -272,13 +312,6 @@ export default function Home() {
                     </div>
                 </div>
 
-                {/* Debug Info */}
-                {/* <div className="mb-4 p-4 bg-slate-800/50 rounded-lg">
-                    <p className="text-sm text-slate-400">
-                        Active Tab: {activeTab} | Trending: {trending.length} | Popular: {popular.length} | Search: {searchResults.length}
-                    </p>
-                </div> */}
-
                 {/* Content Section */}
                 <div>
                     {/* Section Header */}
@@ -309,6 +342,8 @@ export default function Home() {
                                 <>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                                         {getActiveContent().map((media, index) => {
+                                            const watchlistItem = findWatchlistItem(media.id, media.type);
+                                            
                                             return (
                                                 <MovieCard
                                                     key={`${media.id}-${media.type}-${index}`}
@@ -325,6 +360,25 @@ export default function Home() {
                                                         media_type: media.media_type,
                                                         genre_ids: media.genre_ids || []
                                                     }}
+                                                    isInWatchlist={!!watchlistItem}
+                                                    watchlistId={watchlistItem?._id}
+                                                    watchStatus={watchlistItem?.watchStatus as "planned" | "watching" | "completed" || "planned"}
+                                                    onStatusChange={(newStatus) => {
+                                                        // Update local state when status changes
+                                                        const itemIndex = watchlistItems.findIndex(item => 
+                                                            item.tmdbId === media.id && 
+                                                            item.type === media.type
+                                                        );
+                                                        if (itemIndex !== -1) {
+                                                            const updatedItems = [...watchlistItems];
+                                                            updatedItems[itemIndex] = {
+                                                                ...updatedItems[itemIndex],
+                                                                watchStatus: newStatus
+                                                            };
+                                                            setWatchlistItems(updatedItems);
+                                                        }
+                                                    }}
+                                                    onWatchlistChange={handleWatchlistChange}
                                                     showActions={true}
                                                 />
                                             );

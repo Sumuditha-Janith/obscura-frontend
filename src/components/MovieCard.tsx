@@ -22,6 +22,7 @@ interface MovieCardProps {
     watchlistId?: string;
     watchStatus?: "planned" | "watching" | "completed";
     onStatusChange?: (newStatus: "planned" | "watching" | "completed") => void;
+    onWatchlistChange?: () => void;
     showActions?: boolean;
 }
 
@@ -31,6 +32,7 @@ export default function MovieCard({
                                       watchlistId,
                                       watchStatus,
                                       onStatusChange,
+                                      onWatchlistChange,
                                       showActions = true
                                   }: MovieCardProps) {
     const { user } = useAuth();
@@ -101,6 +103,9 @@ const handleAddToWatchlist = async () => {
         if (onStatusChange) {
             onStatusChange("planned");
         }
+        if (onWatchlistChange) {
+            onWatchlistChange();
+        }
         alert(`Added to ${mediaType === "movie" ? "movies" : "TV shows"} watchlist successfully!`);
     } catch (error: any) {
         if (error.response?.status === 400 && error.response?.data?.message?.includes("already in your watchlist")) {
@@ -124,6 +129,9 @@ const handleAddToWatchlist = async () => {
             if (onStatusChange) {
                 onStatusChange("planned");
             }
+            if (onWatchlistChange) {
+                onWatchlistChange();
+            }
             alert("Removed from watchlist!");
         } catch (error: any) {
             alert(error.response?.data?.message || "Failed to remove from watchlist");
@@ -143,6 +151,9 @@ const handleAddToWatchlist = async () => {
 
             if (onStatusChange) {
                 onStatusChange(newStatus);
+            }
+            if (onWatchlistChange) {
+                onWatchlistChange();
             }
         } catch (error: any) {
             alert(error.response?.data?.message || "Failed to update status");
@@ -228,11 +239,18 @@ const handleAddToWatchlist = async () => {
                                         {loading ? "Removing..." : "Remove from Watchlist"}
                                     </button>
 
-                                    {/* Status Selector - Different for movies and TV shows */}
-                                    <div className={`grid gap-1 ${mediaType === "movie" ? "grid-cols-2" : "grid-cols-3"}`}>
-                                        {mediaType === "movie" ? (
-                                            // Movies: Only Planned and Completed
-                                            (["planned", "completed"] as const).map((status) => (
+                                    {/* For TV shows, show "Go to Watchlist" button instead of status selector */}
+                                    {mediaType === "tv" ? (
+                                        <Link
+                                            to="/watchlist"
+                                            className="block w-full bg-blue-600 hover:bg-blue-700 text-slate-50 font-medium py-2 px-4 rounded-lg transition duration-200 text-center"
+                                        >
+                                            📺 Go to Watchlist
+                                        </Link>
+                                    ) : (
+                                        // For movies, keep the status selector
+                                        <div className="grid grid-cols-2 gap-1">
+                                            {(["planned", "completed"] as const).map((status) => (
                                                 <button
                                                     key={status}
                                                     onClick={() => handleStatusChange(status)}
@@ -244,33 +262,18 @@ const handleAddToWatchlist = async () => {
                                                 >
                                                     {getStatusIcon(status)} {status.charAt(0).toUpperCase() + status.slice(1)}
                                                 </button>
-                                            ))
-                                        ) : (
-                                            // TV Shows: All three statuses
-                                            (["planned", "watching", "completed"] as const).map((status) => (
-                                                <button
-                                                    key={status}
-                                                    onClick={() => handleStatusChange(status)}
-                                                    disabled={loading || currentStatus === status}
-                                                    className={`py-1 px-2 rounded text-xs font-medium transition ${currentStatus === status
-                                                            ? getStatusColor(status)
-                                                            : "bg-slate-900/70 text-slate-400 hover:bg-slate-800"
-                                                        }`}
-                                                >
-                                                    {getStatusIcon(status)} {status.charAt(0).toUpperCase() + status.slice(1)}
-                                                </button>
-                                            ))
-                                        )}
-                                    </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <Link
+                                        to={`/media/${getMediaType()}/${media.id}`}
+                                        className="block w-full bg-slate-800/90 hover:bg-slate-700/90 text-slate-300 hover:text-slate-50 font-medium py-2 px-4 rounded-lg transition duration-200 text-center"
+                                    >
+                                        View Details
+                                    </Link>
                                 </div>
                             )}
-
-                            <Link
-                                to={`/media/${getMediaType()}/${media.id}`}
-                                className="block w-full bg-slate-800/90 hover:bg-slate-700/90 text-slate-300 hover:text-slate-50 font-medium py-2 px-4 rounded-lg transition duration-200 text-center"
-                            >
-                                View Details
-                            </Link>
                         </div>
                     </div>
                 )}
@@ -292,10 +295,16 @@ const handleAddToWatchlist = async () => {
                     </span>
 
                     {/* Watch Status Badge */}
-                    {inWatchlist && (
+                    {inWatchlist && mediaType === "movie" && (
                         <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(currentStatus)}`}>
                             <span className="mr-1">{getStatusIcon(currentStatus)}</span>
                             {currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
+                        </div>
+                    )}
+                    {inWatchlist && mediaType === "tv" && (
+                        <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-600 text-blue-100">
+                            <span className="mr-1">📺</span>
+                            In Watchlist
                         </div>
                     )}
                 </div>

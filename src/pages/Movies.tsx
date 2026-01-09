@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { getTrending, getPopularMovies, searchMedia } from "../services/media.service";
+import { getTrending, getPopularMovies, searchMedia, getWatchlist } from "../services/media.service";
 import MovieCard from "../components/MovieCard";
 import Navbar from "../components/Navbar";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
+import { useAuth } from "../context/authContext";
 
 interface TMDBMediaItem {
     id: number;
@@ -32,7 +33,19 @@ interface MediaItem {
     genre_ids?: number[];
 }
 
+interface WatchlistItem {
+    _id: string;
+    tmdbId: number;
+    title: string;
+    type: "movie" | "tv";
+    posterPath: string;
+    releaseDate: string;
+    watchStatus: "planned" | "watching" | "completed";
+    watchTimeMinutes: number;
+}
+
 export default function Movies() {
+    const { user } = useAuth();
     const [trending, setTrending] = useState<MediaItem[]>([]);
     const [popular, setPopular] = useState<MediaItem[]>([]);
     const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
@@ -41,8 +54,10 @@ export default function Movies() {
         trending: false,
         popular: false,
         search: false,
+        watchlist: false,
     });
     const [activeTab, setActiveTab] = useState<"trending" | "popular" | "search">("trending");
+    const [watchlistItems, setWatchlistItems] = useState<WatchlistItem[]>([]);
     
     // Pagination states
     const [trendingPage, setTrendingPage] = useState(1);
@@ -51,6 +66,22 @@ export default function Movies() {
     const [hasMoreTrending, setHasMoreTrending] = useState(true);
     const [hasMorePopular, setHasMorePopular] = useState(true);
     const [hasMoreSearch, setHasMoreSearch] = useState(true);
+
+    // Fetch watchlist
+    const fetchWatchlist = async () => {
+        if (!user) return;
+        
+        setLoading(prev => ({ ...prev, watchlist: true }));
+        try {
+            const response = await getWatchlist(1);
+            setWatchlistItems(response.data || []);
+        } catch (error) {
+            console.error("Failed to fetch watchlist:", error);
+            setWatchlistItems([]);
+        } finally {
+            setLoading(prev => ({ ...prev, watchlist: false }));
+        }
+    };
 
     // Helper function to format TMDB data
     const formatMediaItem = (item: TMDBMediaItem): MediaItem => {
@@ -120,7 +151,10 @@ export default function Movies() {
     useEffect(() => {
         fetchTrendingMovies(1);
         fetchPopularMovies(1);
-    }, []);
+        if (user) {
+            fetchWatchlist();
+        }
+    }, [user]);
 
     // Infinite scroll handlers
     const loadMoreTrending = useCallback(async () => {
@@ -215,6 +249,17 @@ export default function Movies() {
         }
     };
 
+    const handleWatchlistChange = () => {
+        fetchWatchlist();
+    };
+
+    const findWatchlistItem = (mediaId: number, type: string) => {
+        return watchlistItems.find(item => 
+            item.tmdbId === mediaId && 
+            item.type === type
+        );
+    };
+
     return (
         <div className="min-h-screen bg-slate-900 text-slate-50">
             <Navbar />
@@ -227,11 +272,6 @@ export default function Movies() {
                         Explore trending movies, popular films, and search from thousands of movie titles
                     </p>
                 </div>
-
-                {/* Search Bar */}
-                {/* <div className="mb-8">
-                    <SearchBar />
-                </div> */}
 
                 {/* Tab Navigation */}
                 <div className="mb-8">
@@ -300,17 +340,40 @@ export default function Movies() {
                             {getActiveContent().length > 0 ? (
                                 <>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                                        {getActiveContent().map((media) => (
-                                            <MovieCard
-                                                key={`${media.id}-${media.type}-${Math.random()}`}
-                                                media={{
-                                                    ...media,
-                                                    backdrop_path: media.backdrop_path || "",
-                                                    vote_count: media.vote_count || 0,
-                                                }}
-                                                showActions={true}
-                                            />
-                                        ))}
+                                        {getActiveContent().map((media) => {
+                                            const watchlistItem = findWatchlistItem(media.id, media.type);
+                                            
+                                            return (
+                                                <MovieCard
+                                                    key={`${media.id}-${media.type}-${Math.random()}`}
+                                                    media={{
+                                                        ...media,
+                                                        backdrop_path: media.backdrop_path || "",
+                                                        vote_count: media.vote_count || 0,
+                                                    }}
+                                                    isInWatchlist={!!watchlistItem}
+                                                    watchlistId={watchlistItem?._id}
+                                                    watchStatus={watchlistItem?.watchStatus as "planned" | "watching" | "completed" || "planned"}
+                                                    onStatusChange={(newStatus) => {
+                                                        // Update local state when status changes
+                                                        const itemIndex = watchlistItems.findIndex(item => 
+                                                            item.tmdbId === media.id && 
+                                                            item.type === media.type
+                                                        );
+                                                        if (itemIndex !== -1) {
+                                                            const updatedItems = [...watchlistItems];
+                                                            updatedItems[itemIndex] = {
+                                                                ...updatedItems[itemIndex],
+                                                                watchStatus: newStatus
+                                                            };
+                                                            setWatchlistItems(updatedItems);
+                                                        }
+                                                    }}
+                                                    onWatchlistChange={handleWatchlistChange}
+                                                    showActions={true}
+                                                />
+                                            );
+                                        })}
                                     </div>
 
                                     {/* Sentinel for infinite scroll */}

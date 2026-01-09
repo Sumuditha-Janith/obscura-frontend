@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { getTrending, searchMedia } from "../services/media.service";
+import { getTrending, searchMedia, getWatchlist } from "../services/media.service";
 import MovieCard from "../components/MovieCard";
 import Navbar from "../components/Navbar";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
+import { useAuth } from "../context/authContext";
 
 interface TMDBMediaItem {
     id: number;
@@ -32,21 +33,51 @@ interface MediaItem {
     genre_ids?: number[];
 }
 
+interface WatchlistItem {
+    _id: string;
+    tmdbId: number;
+    title: string;
+    type: "movie" | "tv";
+    posterPath: string;
+    releaseDate: string;
+    watchStatus: "planned" | "watching" | "completed";
+    watchTimeMinutes: number;
+}
+
 export default function TVShows() {
+    const { user } = useAuth();
     const [trending, setTrending] = useState<MediaItem[]>([]);
     const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
     const [searchQuery] = useState("");
     const [loading, setLoading] = useState({
         trending: false,
         search: false,
+        watchlist: false,
     });
     const [activeTab, setActiveTab] = useState<"trending" | "search">("trending");
+    const [watchlistItems, setWatchlistItems] = useState<WatchlistItem[]>([]);
     
     // Pagination states
     const [trendingPage, setTrendingPage] = useState(1);
     const [searchPage, setSearchPage] = useState(1);
     const [hasMoreTrending, setHasMoreTrending] = useState(true);
     const [hasMoreSearch, setHasMoreSearch] = useState(true);
+
+    // Fetch watchlist
+    const fetchWatchlist = async () => {
+        if (!user) return;
+        
+        setLoading(prev => ({ ...prev, watchlist: true }));
+        try {
+            const response = await getWatchlist(1);
+            setWatchlistItems(response.data || []);
+        } catch (error) {
+            console.error("Failed to fetch watchlist:", error);
+            setWatchlistItems([]);
+        } finally {
+            setLoading(prev => ({ ...prev, watchlist: false }));
+        }
+    };
 
     // Helper function to format TMDB data
     const formatMediaItem = (item: TMDBMediaItem): MediaItem => {
@@ -92,37 +123,10 @@ export default function TVShows() {
 
     useEffect(() => {
         fetchTrendingTVShows(1);
-    }, []);
-
-    // const handleSearch = async (query: string) => {
-    //     setSearchQuery(query);
-
-    //     if (!query.trim()) {
-    //         setSearchResults([]);
-    //         setActiveTab("trending");
-    //         setSearchPage(1);
-    //         setHasMoreSearch(true);
-    //         return;
-    //     }
-
-    //     setLoading(prev => ({ ...prev, search: true }));
-    //     setActiveTab("search");
-
-    //     try {
-    //         const response = await searchMedia(query, 1);
-    //         const formattedItems = response.data.map(formatMediaItem);
-    //         const tvOnly = formattedItems.filter((item: MediaItem) => item.type === "tv");
-
-    //         setSearchResults(tvOnly);
-    //         setHasMoreSearch(1 < (response.pagination?.total_pages || 1));
-    //         setSearchPage(1);
-    //     } catch (error) {
-    //         console.error("TV Shows - Search error:", error);
-    //         setSearchResults([]);
-    //     } finally {
-    //         setLoading(prev => ({ ...prev, search: false }));
-    //     }
-    // };
+        if (user) {
+            fetchWatchlist();
+        }
+    }, [user]);
 
     // Infinite scroll handlers
     const loadMoreTrending = useCallback(async () => {
@@ -205,6 +209,17 @@ export default function TVShows() {
         }
     };
 
+    const handleWatchlistChange = () => {
+        fetchWatchlist();
+    };
+
+    const findWatchlistItem = (mediaId: number, type: string) => {
+        return watchlistItems.find(item => 
+            item.tmdbId === mediaId && 
+            item.type === type
+        );
+    };
+
     return (
         <div className="min-h-screen bg-slate-900 text-slate-50">
             <Navbar />
@@ -217,11 +232,6 @@ export default function TVShows() {
                         Explore trending TV shows, discover new series, and search from thousands of TV titles
                     </p>
                 </div>
-
-                {/* Search Bar */}
-                {/* <div className="mb-8">
-                    <SearchBar />
-                </div> */}
 
                 {/* Tab Navigation */}
                 <div className="mb-8">
@@ -279,17 +289,40 @@ export default function TVShows() {
                             {getActiveContent().length > 0 ? (
                                 <>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                                        {getActiveContent().map((show) => (
-                                            <MovieCard
-                                                key={`${show.id}-${show.type}-${Math.random()}`}
-                                                media={{
-                                                    ...show,
-                                                    backdrop_path: show.backdrop_path || "",
-                                                    vote_count: show.vote_count || 0,
-                                                }}
-                                                showActions={true}
-                                            />
-                                        ))}
+                                        {getActiveContent().map((show) => {
+                                            const watchlistItem = findWatchlistItem(show.id, show.type);
+                                            
+                                            return (
+                                                <MovieCard
+                                                    key={`${show.id}-${show.type}-${Math.random()}`}
+                                                    media={{
+                                                        ...show,
+                                                        backdrop_path: show.backdrop_path || "",
+                                                        vote_count: show.vote_count || 0,
+                                                    }}
+                                                    isInWatchlist={!!watchlistItem}
+                                                    watchlistId={watchlistItem?._id}
+                                                    watchStatus={watchlistItem?.watchStatus as "planned" | "watching" | "completed" || "planned"}
+                                                    onStatusChange={(newStatus) => {
+                                                        // Update local state when status changes
+                                                        const itemIndex = watchlistItems.findIndex(item => 
+                                                            item.tmdbId === show.id && 
+                                                            item.type === show.type
+                                                        );
+                                                        if (itemIndex !== -1) {
+                                                            const updatedItems = [...watchlistItems];
+                                                            updatedItems[itemIndex] = {
+                                                                ...updatedItems[itemIndex],
+                                                                watchStatus: newStatus
+                                                            };
+                                                            setWatchlistItems(updatedItems);
+                                                        }
+                                                    }}
+                                                    onWatchlistChange={handleWatchlistChange}
+                                                    showActions={true}
+                                                />
+                                            );
+                                        })}
                                     </div>
 
                                     {/* Sentinel for infinite scroll */}
