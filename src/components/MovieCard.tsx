@@ -267,7 +267,7 @@ export default function MovieCard({
                                         disabled={loading}
                                         className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium py-2 px-4 rounded-lg transition duration-200 disabled:opacity-50"
                                     >
-                                        {loading ? "Removing..." : "Remove from Watchlist"}
+                                        {loading ? "Updating..." : "Remove from Watchlist"}
                                     </button>
 
                                     {/* For TV shows, show "Go to Watchlist" button instead of status selector */}
